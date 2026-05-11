@@ -379,16 +379,19 @@
   // ---- Theme ----
   const THEME_KEY = "room-tracker.theme.v1";
   (function initTheme() {
-    const saved = localStorage.getItem(THEME_KEY) || "light";
-    document.documentElement.setAttribute("data-theme", saved);
+    try {
+      const saved = localStorage.getItem(THEME_KEY) || "light";
+      document.documentElement.setAttribute("data-theme", saved);
+    } catch (e) { console.warn("theme init failed", e); }
   })();
   function toggleTheme() {
     const cur = document.documentElement.getAttribute("data-theme") || "light";
     const next = cur === "dark" ? "light" : "dark";
     document.documentElement.setAttribute("data-theme", next);
-    localStorage.setItem(THEME_KEY, next);
+    try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
   }
-  document.getElementById("theme-toggle").onclick = toggleTheme;
+  const themeBtn = document.getElementById("theme-toggle");
+  if (themeBtn) themeBtn.onclick = toggleTheme;
 
   // ---- Local state ----
   const UI_KEY = "room-tracker.ui.v1";
@@ -580,4 +583,133 @@
     const el = document.createElement("div");
     el.className = "stat";
     el.innerHTML = `
-      <div class="label">${labe
+      <div class="label">${label}</div>
+      <div class="value ${tier}">${value}</div>
+      <div class="bar"><span class="${tier}" style="width:${pct}%"></span></div>
+      <div class="label" style="margin-top:4px;letter-spacing:0;text-transform:none;color:#999;">${sub}</div>`;
+    return el;
+  }
+
+  function renderSummary() {
+    const el = $("#summary"); el.innerHTML = "";
+    const tower = getTower(ui.tower);
+    const t = towerStats(tower);
+    el.appendChild(statCard(`${tower.name}`, `${t.pct}%`, `${t.done}/${t.total} tasks`, t.pct));
+    for (const j of JOBS) {
+      const s = jobStatsInTower(tower, j.key);
+      el.appendChild(statCard(j.label, `${s.pct}%`, `${s.done}/${s.total} rooms`, s.pct));
+    }
+  }
+
+  function renderTowerBar() {
+    const el = $("#tower-bar"); el.innerHTML = "";
+    for (const t of TOWERS) {
+      const b = document.createElement("button");
+      b.className = "tower-btn" + (t.id === ui.tower ? " active" : "");
+      const s = towerStats(t);
+      b.innerHTML = `${t.name} <span style="opacity:0.6;font-weight:400;">· ${s.pct}%</span>`;
+      b.onclick = () => {
+        ui.tower = t.id; ui.floor = t.floors[0].num;
+        localStorage.setItem(UI_KEY, JSON.stringify(ui));
+        renderAll();
+      };
+      el.appendChild(b);
+    }
+  }
+
+  function renderTabs() {
+    const el = $("#tabs"); el.innerHTML = "";
+    const tower = getTower(ui.tower);
+    if (!tower.floors.find(f => f.num === ui.floor)) ui.floor = tower.floors[0].num;
+    for (const f of tower.floors) {
+      const s = floorStats(tower, f);
+      const btn = document.createElement("button");
+      btn.className = "tab" + (f.num === ui.floor ? " active" : "");
+      btn.innerHTML = `Floor ${f.num} <span class="pct ${pctTier(s.pct)}">${s.pct}%</span>`;
+      btn.onclick = () => {
+        ui.floor = f.num;
+        localStorage.setItem(UI_KEY, JSON.stringify(ui));
+        renderAll();
+      };
+      el.appendChild(btn);
+    }
+  }
+
+  function renderFloorView() {
+    const el = $("#floor-view"); el.innerHTML = "";
+    const tower = getTower(ui.tower);
+    const floor = getFloor(tower, ui.floor);
+
+    const head = document.createElement("div");
+    head.className = "floor-head";
+    head.innerHTML = `
+      <h2>${tower.name} · Floor ${floor.num}
+        <span style="color:#888;font-weight:400;font-size:13px;">· ${floor.rooms.length} rooms</span>
+      </h2>
+      <div class="controls">
+        <button data-act="all">Mark floor</button>
+        <button data-act="clear">Clear floor</button>
+      </div>`;
+    el.appendChild(head);
+
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    thead.innerHTML = `<tr><th>Room</th>${JOBS.map(j => `<th>${j.label}</th>`).join("")}</tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    for (const r of floor.rooms) {
+      const tr = document.createElement("tr");
+      const allDone = JOBS.every(j => isChecked(tower.id, r, j.key));
+      if (allDone) tr.classList.add("done");
+      const cells = JOBS.map(j => {
+        const id = docId(tower.id, r, j.key);
+        const c = completions[id];
+        const by = c && c.doneBy ? c.doneBy : "";
+        return `<td>
+          <label class="cb${c ? " checked" : ""}" data-tower="${tower.id}" data-room="${r}" data-job="${j.key}" title="${by ? "Done by " + by : ""}">
+            <input type="checkbox" ${c ? "checked" : ""}>
+          </label>
+        </td>`;
+      }).join("");
+      tr.innerHTML = `<td><span class="room-num">${r}</span></td>${cells}`;
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    el.appendChild(table);
+
+    head.querySelector('[data-act="all"]').onclick = () => markFloor(tower, floor, true);
+    head.querySelector('[data-act="clear"]').onclick = () => markFloor(tower, floor, false);
+  }
+
+  function renderMeta() {
+    let totalRooms = 0, totalCells = 0;
+    for (const t of TOWERS) for (const f of t.floors) {
+      totalRooms += f.rooms.length;
+      totalCells += f.rooms.length * JOBS.length;
+    }
+    $("#meta").textContent =
+      `${totalRooms} rooms · ${TOWERS.length} towers · ${totalCells} total checkpoints · synced in real time`;
+  }
+
+  function renderAll() {
+    renderTowerBar();
+    renderSummary();
+    renderTabs();
+    renderFloorView();
+    renderMeta();
+  }
+
+  // ---- Event delegation for checkboxes ----
+  document.addEventListener("click", (e) => {
+    const cb = e.target.closest("label.cb");
+    if (!cb) return;
+    e.preventDefault();
+    toggle(cb.dataset.tower, +cb.dataset.room, cb.dataset.job);
+  });
+
+  // Initial render with empty data so the UI shows immediately
+  renderAll();
+</script>
+</body>
+</html>
