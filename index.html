@@ -65,7 +65,11 @@
   .stat .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #888; }
   .stat .value { font-size: 18px; font-weight: 700; margin-top: 2px; }
   .bar { height: 6px; background: #ececea; border-radius: 4px; overflow: hidden; margin-top: 6px; }
-  .bar > span { display: block; height: 100%; background: #2a8a4a; transition: width 0.25s; }
+  .bar > span { display: block; height: 100%; transition: width 0.25s, background-color 0.25s; }
+  .bar > span.t-red    { background: #d94545; }
+  .bar > span.t-orange { background: #ee8a1f; }
+  .bar > span.t-yellow { background: #d9b317; }
+  .bar > span.t-green  { background: #2a8a4a; }
 
   .tower-bar {
     display: flex; gap: 6px; margin-bottom: 10px; background: #ececea; border-radius: 10px;
@@ -475,13 +479,19 @@
   $("#today").textContent = today();
   $("#reset-day").onclick = resetAll;
 
+  function pctTier(p) {
+    if (p >= 100) return "t-green";
+    if (p >= 66)  return "t-yellow";
+    if (p >= 33)  return "t-orange";
+    return "t-red";
+  }
   function statCard(label, value, sub, pct) {
     const el = document.createElement("div");
     el.className = "stat";
     el.innerHTML = `
       <div class="label">${label}</div>
       <div class="value">${value}</div>
-      <div class="bar"><span style="width:${pct}%"></span></div>
+      <div class="bar"><span class="${pctTier(pct)}" style="width:${pct}%"></span></div>
       <div class="label" style="margin-top:4px;letter-spacing:0;text-transform:none;color:#999;">${sub}</div>`;
     return el;
   }
