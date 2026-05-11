@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Room Tracker</title>
+
+<!-- iOS PWA hints -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Rooms">
+<meta name="theme-color" content="#1a1a1a">
+<link rel="apple-touch-icon" href='data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="40" fill="%231a1a1a"/><text x="96" y="130" text-anchor="middle" font-family="-apple-system,Helvetica,Arial" font-size="110" font-weight="800" fill="%23ffffff">R</text></svg>'>
+
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f7f7f5;
+    color: #1a1a1a;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 14px 16px 60px; }
+
+  header {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 12px; margin-bottom: 14px;
+  }
+  h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+  .sub { color: #666; font-size: 12px; margin-top: 2px; }
+  .who {
+    font-size: 12px; color: #444;
+    background: #fff; border: 1px solid #e6e5df; border-radius: 999px;
+    padding: 6px 10px; display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer;
+  }
+  .who .dot {
+    width: 7px; height: 7px; border-radius: 50%; background: #2a8a4a;
+  }
+  .who.offline .dot { background: #c97700; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button {
+    font: inherit;
+    background: #fff; border: 1px solid #d8d8d4; border-radius: 8px;
+    padding: 8px 12px; cursor: pointer; color: #1a1a1a;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  button:active { transform: scale(0.97); }
+  button:hover { background: #f0efe9; }
+  button.primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  button.primary:hover { background: #333; }
+  button.danger { color: #a02020; border-color: #e8c8c8; }
+  button.danger:hover { background: #fbeaea; }
+
+  .summary {
+    background: #fff; border: 1px solid #e6e5df; border-radius: 12px;
+    padding: 12px 14px; margin-bottom: 12px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;
+  }
+  .stat .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #888; }
+  .stat .value { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .bar { height: 6px; background: #ececea; border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .bar > span { display: block; height: 100%; background: #2a8a4a; transition: width 0.25s; }
+
+  .tower-bar {
+    display: flex; gap: 6px; margin-bottom: 10px; background: #ececea; border-radius: 10px;
+    padding: 4px; width: fit-content;
+  }
+  .tower-btn {
+    background: transparent; border: none; border-radius: 7px;
+    padding: 7px 16px; font-weight: 600; font-size: 13px; cursor: pointer;
+    color: #555;
+  }
+  .tower-btn.active { background: #fff; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+  .tab {
+    background: #fff; border: 1px solid #d8d8d4; border-radius: 999px;
+    padding: 6px 14px; cursor: pointer; font-size: 13px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .tab:hover { background: #f0efe9; }
+  .tab.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+  .tab .pct { font-size: 11px; opacity: 0.7; font-weight: 400; }
+
+  .floor-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
+  }
+  .floor-head h2 { font-size: 15px; margin: 0; font-weight: 700; }
+  .floor-head .controls { display: flex; gap: 6px; }
+  .floor-head button { padding: 4px 10px; font-size: 12px; border-radius: 6px; }
+
+  table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    background: #fff; border: 1px solid #e6e5df; border-radius: 10px; overflow: hidden;
+  }
+  th, td {
+    padding: 8px 6px; text-align: center; font-size: 13px;
+    border-bottom: 1px solid #efeee8;
+  }
+  th {
+    background: #f4f3ee; font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: 0.04em; color: #555;
+  }
+  th:first-child, td:first-child { text-align: left; padding-left: 14px; }
+  tr:last-child td { border-bottom: none; }
+  tr.done { background: #f6faf6; }
+  tr.done td:first-child { color: #2a8a4a; font-weight: 700; }
+  .room-num { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14px; }
+
+  label.cb {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 7px; cursor: pointer;
+    border: 1.5px solid #cfcec7; background: #fff;
+    transition: background 0.1s, border-color 0.1s;
+    position: relative;
+  }
+  label.cb:hover { border-color: #1a1a1a; }
+  label.cb input { display: none; }
+  label.cb.checked {
+    background: #2a8a4a; border-color: #2a8a4a;
+  }
+  label.cb.checked::after {
+    content: "";
+    width: 7px; height: 13px;
+    border: solid #fff; border-width: 0 2.5px 2.5px 0;
+    transform: rotate(45deg) translate(-1px, -1px);
+  }
+  label.cb .by {
+    position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%);
+    font-size: 9px; color: #2a8a4a; white-space: nowrap; pointer-events: none;
+    font-weight: 600;
+  }
+
+  .meta { color: #888; font-size: 11px; margin-top: 10px; text-align: center; }
+
+  /* Login overlay */
+  .overlay {
+    position: fixed; inset: 0; background: #f7f7f5;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100; padding: 20px;
+  }
+  .login-card {
+    max-width: 380px; width: 100%;
+    background: #fff; border: 1px solid #e6e5df; border-radius: 16px;
+    padding: 28px; text-align: center;
+  }
+  .login-card h2 { margin: 0 0 6px; font-size: 22px; }
+  .login-card p { color: #666; font-size: 14px; margin: 0 0 18px; }
+  .login-card input {
+    width: 100%; padding: 12px 14px; font: inherit; font-size: 16px;
+    border: 1.5px solid #d8d8d4; border-radius: 10px; margin-bottom: 12px;
+    background: #fff; color: #1a1a1a;
+  }
+  .login-card input:focus { outline: none; border-color: #1a1a1a; }
+  .login-card button { width: 100%; padding: 12px; font-size: 15px; font-weight: 600; }
+  .login-card .err { color: #a02020; font-size: 13px; margin-top: 8px; min-height: 18px; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: #1a1a1a; color: #fff; padding: 10px 16px; border-radius: 999px;
+    font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
+  }
+  .toast.show { opacity: 0.95; }
+
+  @media (max-width: 600px) {
+    .wrap { padding: 12px 10px 60px; }
+    h1 { font-size: 17px; }
+    th, td { padding: 6px 3px; font-size: 12px; }
+    th:first-child, td:first-child { padding-left: 10px; }
+    label.cb { width: 28px; height: 28px; }
+    .summary { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Login overlay -->
+<div id="login-overlay" class="overlay">
+  <div class="login-card">
+    <h2>Welcome</h2>
+    <p>Enter your name so the team knows who completed each task.</p>
+    <input id="display-name-input" placeholder="Your name (e.g. Maria)" autocomplete="given-name" />
+    <button id="login-btn" class="primary">Start</button>
+    <div class="err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- Main app -->
+<div class="wrap" id="app" style="display:none">
+  <header>
+    <div>
+      <h1>Room Tracker</h1>
+      <div class="sub"><span id="today"></span> · Bed Pads, Shower Bottles, Lotion, Beacon</div>
+    </div>
+    <div class="actions">
+      <span class="who" id="who"><span class="dot"></span><span id="who-name">Loading…</span></span>
+      <button id="reset-day" class="danger">Reset all</button>
+    </div>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="tower-bar" id="tower-bar"></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="floor-view"></div>
+
+  <div class="meta" id="meta"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+  import {
+    getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot,
+    writeBatch, getDocs, serverTimestamp
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+  import {
+    getAuth, signInAnonymously, onAuthStateChanged, updateProfile
+  } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+
+  // =====================================================================
+  // 👇 PASTE YOUR FIREBASE CONFIG BETWEEN THE LINES BELOW
+  // =====================================================================
+  const firebaseConfig = {
+    apiKey:            "AIzaSyABaHVgLdxbVaqZQO-IPIuBXxxQGXE9ryU",
+    authDomain:        "room-task-tracker.firebaseapp.com",
+    projectId:         "room-task-tracker",
+    storageBucket:     "room-task-tracker.firebasestorage.app",
+    messagingSenderId: "115625515862",
+    appId:             "1:115625515862:web:a87b713109e61966b514f7"
+  };
+  // =====================================================================
+
+  // Detect a still-unconfigured app and show a friendly setup screen.
+  const isConfigured = !Object.values(firebaseConfig).some(v => typeof v === "string" && v.startsWith("PASTE_"));
+  if (!isConfigured) {
+    document.body.innerHTML = `
+      <div class="overlay" style="position:static;min-height:100vh">
+        <div class="login-card" style="max-width:520px;text-align:left">
+          <h2 style="text-align:center">Setup needed</h2>
+          <p style="text-align:center">Paste your Firebase config into <code>index.html</code> where it says <strong>PASTE_…</strong>, then re-upload. Open <code>SETUP.md</code> for step-by-step instructions.</p>
+        </div>
+      </div>`;
+    throw new Error("Firebase not configured");
+  }
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  // ---- Room configuration (matches the desktop tracker) ----
+  const JOBS = [
+    { key: "bed",    label: "Bed Pads" },
+    { key: "shower", label: "Shower Bottles" },
+    { key: "lotion", label: "Lotion" },
+    { key: "beacon", label: "Beacon" }
+  ];
+  function range(start, end, skip = []) {
+    const out = [], s = new Set(skip);
+    for (let n = start; n <= end; n++) if (!s.has(n)) out.push(n);
+    return out;
+  }
+  const TOWERS = [
+    {
+      id: "east", name: "East Tower",
+      floors: [
+        { num: 2, rooms: range(203, 223) },
+        { num: 3, rooms: range(303, 323) },
+        { num: 4, rooms: range(403, 423) },
+        { num: 5, rooms: range(503, 523) },
+        { num: 6, rooms: range(603, 623) },
+        { num: 7, rooms: range(703, 723, [713]) },
+        { num: 8, rooms: range(803, 822, [813]) }
+      ]
+    },
+    {
+      id: "west", name: "West Tower",
+      floors: [
+        { num: 2, rooms: range(2001, 2026, [2006]) },
+        { num: 3, rooms: range(3001, 3026, [3006]) },
+        { num: 4, rooms: range(4001, 4026, [4006]) },
+        { num: 5, rooms: range(5001, 5026, [5006]) },
+        { num: 6, rooms: range(6001, 6026, [6006]) },
+        { num: 7, rooms: range(7001, 7026, [7006]) },
+        { num: 8, rooms: range(8001, 8026, [8006, 8013]) },
+        { num: 9, rooms: range(9001, 9026, [9006, 9013]) }
+      ]
+    }
+  ];
+
+  // ---- Local state ----
+  const UI_KEY = "room-tracker.ui.v1";
+  const NAME_KEY = "room-tracker.name.v1";
+  let ui = { tower: "east", floor: 2 };
+  try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || "{}")); } catch {}
+  let completions = {}; // docId -> { tower, room, job, doneBy, doneAt }
+  let displayName = localStorage.getItem(NAME_KEY) || "";
+
+  // ---- Helpers ----
+  const $ = (sel) => document.querySelector(sel);
+  function docId(tower, room, job) { return `${tower}-${room}-${job}`; }
+  function isChecked(tower, room, job) { return !!completions[docId(tower, room, job)]; }
+  function getTower(id) { return TOWERS.find(t => t.id === id) || TOWERS[0]; }
+  function getFloor(tower, num) { return tower.floors.find(f => f.num === num) || tower.floors[0]; }
+  function today() { return new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }); }
+  function showToast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => t.classList.remove("show"), 1800);
+  }
+
+  // ---- Auth / login flow ----
+  $("#login-btn").onclick = () => doLogin();
+  $("#display-name-input").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+
+  if (displayName) {
+    $("#display-name-input").value = displayName;
+  }
+
+  async function doLogin() {
+    const input = $("#display-name-input");
+    const name = input.value.trim();
+    if (!name) {
+      $("#login-err").textContent = "Please enter your name.";
+      input.focus();
+      return;
+    }
+    $("#login-err").textContent = "";
+    $("#login-btn").disabled = true;
+    $("#login-btn").textContent = "Connecting…";
+    try {
+      await signInAnonymously(auth);
+      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: name });
+      displayName = name;
+      localStorage.setItem(NAME_KEY, name);
+      $("#who-name").textContent = name;
+      $("#login-overlay").style.display = "none";
+      $("#app").style.display = "";
+      startListening();
+    } catch (e) {
+      console.error(e);
+      $("#login-err").textContent = "Couldn't sign in: " + (e.message || e.code || "unknown error");
+      $("#login-btn").disabled = false;
+      $("#login-btn").textContent = "Start";
+    }
+  }
+
+  onAuthStateChanged(auth, (user) => {
+    if (user && displayName) {
+      $("#login-overlay").style.display = "none";
+      $("#app").style.display = "";
+      $("#who-name").textContent = displayName;
+      startListening();
+    }
+  });
+
+  // Allow changing name later
+  $("#who").onclick = async () => {
+    const next = prompt("Change your name:", displayName);
+    if (next === null) return;
+    const trimmed = next.trim();
+    if (!trimmed) return;
+    displayName = trimmed;
+    localStorage.setItem(NAME_KEY, displayName);
+    $("#who-name").textContent = displayName;
+    if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: trimmed });
+    showToast("Name updated");
+  };
+
+  // ---- Online/offline indicator ----
+  function setOnlineUI(online) {
+    $("#who").classList.toggle("offline", !online);
+    $("#who-name").textContent = online ? displayName : `${displayName} (offline)`;
+  }
+  window.addEventListener("online", () => setOnlineUI(true));
+  window.addEventListener("offline", () => setOnlineUI(false));
+  setOnlineUI(navigator.onLine);
+
+  // ---- Firestore real-time listener ----
+  let unsub = null;
+  let listenerStarted = false;
+  function startListening() {
+    if (listenerStarted) return;
+    listenerStarted = true;
+    unsub = onSnapshot(collection(db, "completions"), (snap) => {
+      const next = {};
+      snap.forEach((d) => { next[d.id] = d.data(); });
+      completions = next;
+      renderAll();
+    }, (err) => {
+      console.error("listener error", err);
+      showToast("Connection issue");
+    });
+  }
+
+  // ---- Writes ----
+  async function toggle(tower, room, job) {
+    const id = docId(tower, room, job);
+    const ref = doc(db, "completions", id);
+    if (completions[id]) {
+      // Optimistic remove
+      delete completions[id];
+      renderAll();
+      try { await deleteDoc(ref); }
+      catch (e) { console.error(e); showToast("Couldn't save"); }
+    } else {
+      const data = { tower, room, job, doneBy: displayName, doneAt: serverTimestamp() };
+      completions[id] = { ...data, doneAt: new Date() };
+      renderAll();
+      try { await setDoc(ref, data); }
+      catch (e) { console.error(e); showToast("Couldn't save"); }
+    }
+  }
+
+  async function markFloor(tower, floor, value) {
+    const batch = writeBatch(db);
+    for (const r of floor.rooms) {
+      for (const j of JOBS) {
+        const ref = doc(db, "completions", docId(tower.id, r, j.key));
+        if (value) {
+          batch.set(ref, { tower: tower.id, room: r, job: j.key, doneBy: displayName, doneAt: serverTimestamp() });
+        } else {
+          batch.delete(ref);
+        }
+      }
+    }
+    try { await batch.commit(); }
+    catch (e) { console.error(e); showToast("Batch save failed"); }
+  }
+
+  async function resetAll() {
+    if (!confirm("Clear ALL checkboxes across both towers? This affects everyone using this app.")) return;
+    try {
+      const snap = await getDocs(collection(db, "completions"));
+      // Batches max 500 ops
+      let batch = writeBatch(db), n = 0;
+      for (const d of snap.docs) {
+        batch.delete(d.ref); n++;
+        if (n === 450) { await batch.commit(); batch = writeBatch(db); n = 0; }
+      }
+      if (n > 0) await batch.commit();
+      showToast("All cleared");
+    } catch (e) { console.error(e); showToast("Reset failed"); }
+  }
+
+  // ---- Stats ----
+  function towerStats(tower) {
+    let done = 0, total = 0;
+    for (const f of tower.floors) for (const r of f.rooms) for (const j of JOBS) {
+      total++; if (isChecked(tower.id, r, j.key)) done++;
+    }
+    return { done, total, pct: total ? Math.round(done/total*100) : 0 };
+  }
+  function floorStats(tower, floor) {
+    const total = floor.rooms.length * JOBS.length;
+    let done = 0;
+    for (const r of floor.rooms) for (const j of JOBS) if (isChecked(tower.id, r, j.key)) done++;
+    return { done, total, pct: total ? Math.round(done/total*100) : 0 };
+  }
+  function jobStatsInTower(tower, jobKey) {
+    let done = 0, total = 0;
+    for (const f of tower.floors) for (const r of f.rooms) { total++; if (isChecked(tower.id, r, jobKey)) done++; }
+    return { done, total, pct: total ? Math.round(done/total*100) : 0 };
+  }
+
+  // ---- Render ----
+  $("#today").textContent = today();
+  $("#reset-day").onclick = resetAll;
+
+  function statCard(label, value, sub, pct) {
+    const el = document.createElement("div");
+    el.className = "stat";
+    el.innerHTML = `
+      <div class="label">${label}</div>
+      <div class="value">${value}</div>
+      <div class="bar"><span style="width:${pct}%"></span></div>
+      <div class="label" style="margin-top:4px;letter-spacing:0;text-transform:none;color:#999;">${sub}</div>`;
+    return el;
+  }
+
+  function renderSummary() {
+    const el = $("#summary"); el.innerHTML = "";
+    const tower = getTower(ui.tower);
+    const t = towerStats(tower);
+    el.appendChild(statCard(`${tower.name}`, `${t.pct}%`, `${t.done}/${t.total} tasks`, t.pct));
+    for (const j of JOBS) {
+      const s = jobStatsInTower(tower, j.key);
+      el.appendChild(statCard(j.label, `${s.pct}%`, `${s.done}/${s.total} rooms`, s.pct));
+    }
+  }
+
+  function renderTowerBar() {
+    const el = $("#tower-bar"); el.innerHTML = "";
+    for (const t of TOWERS) {
+      const b = document.createElement("button");
+      b.className = "tower-btn" + (t.id === ui.tower ? " active" : "");
+      const s = towerStats(t);
+      b.innerHTML = `${t.name} <span style="opacity:0.6;font-weight:400;">· ${s.pct}%</span>`;
+      b.onclick = () => {
+        ui.tower = t.id; ui.floor = t.floors[0].num;
+        localStorage.setItem(UI_KEY, JSON.stringify(ui));
+        renderAll();
+      };
+      el.appendChild(b);
+    }
+  }
+
+  function renderTabs() {
+    const el = $("#tabs"); el.innerHTML = "";
+    const tower = getTower(ui.tower);
+    if (!tower.floors.find(f => f.num === ui.floor)) ui.floor = tower.floors[0].num;
+    for (const f of tower.floors) {
+      const s = floorStats(tower, f);
+      const btn = document.createElement("button");
+      btn.className = "tab" + (f.num === ui.floor ? " active" : "");
+      btn.innerHTML = `Floor ${f.num} <span class="pct">${s.pct}%</span>`;
+      btn.onclick = () => {
+        ui.floor = f.num;
+        localStorage.setItem(UI_KEY, JSON.stringify(ui));
+        renderAll();
+      };
+      el.appendChild(btn);
+    }
+  }
+
+  function renderFloorView() {
+    const el = $("#floor-view"); el.innerHTML = "";
+    const tower = getTower(ui.tower);
+    const floor = getFloor(tower, ui.floor);
+
+    const head = document.createElement("div");
+    head.className = "floor-head";
+    head.innerHTML = `
+      <h2>${tower.name} · Floor ${floor.num}
+        <span style="color:#888;font-weight:400;font-size:13px;">· ${floor.rooms.length} rooms</span>
+      </h2>
+      <div class="controls">
+        <button data-act="all">Mark floor</button>
+        <button data-act="clear">Clear floor</button>
+      </div>`;
+    el.appendChild(head);
+
+    const table = document.createElement("table");
+    const thead = document.createElement("thead");
+    thead.innerHTML = `<tr><th>Room</th>${JOBS.map(j => `<th>${j.label}</th>`).join("")}</tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    for (const r of floor.rooms) {
+      const tr = document.createElement("tr");
+      const allDone = JOBS.every(j => isChecked(tower.id, r, j.key));
+      if (allDone) tr.classList.add("done");
+      const cells = JOBS.map(j => {
+        const id = docId(tower.id, r, j.key);
+        const c = completions[id];
+        const by = c && c.doneBy ? c.doneBy : "";
+        return `<td>
+          <label class="cb${c ? " checked" : ""}" data-tower="${tower.id}" data-room="${r}" data-job="${j.key}" title="${by ? "Done by " + by : ""}">
+            <input type="checkbox" ${c ? "checked" : ""}>
+          </label>
+        </td>`;
+      }).join("");
+      tr.innerHTML = `<td><span class="room-num">${r}</span></td>${cells}`;
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    el.appendChild(table);
+
+    head.querySelector('[data-act="all"]').onclick = () => markFloor(tower, floor, true);
+    head.querySelector('[data-act="clear"]').onclick = () => markFloor(tower, floor, false);
+  }
+
+  function renderMeta() {
+    let totalRooms = 0, totalCells = 0;
+    for (const t of TOWERS) for (const f of t.floors) {
+      totalRooms += f.rooms.length;
+      totalCells += f.rooms.length * JOBS.length;
+    }
+    $("#meta").textContent =
+      `${totalRooms} rooms · ${TOWERS.length} towers · ${totalCells} total checkpoints · synced in real time`;
+  }
+
+  function renderAll() {
+    renderTowerBar();
+    renderSummary();
+    renderTabs();
+    renderFloorView();
+    renderMeta();
+  }
+
+  // ---- Event delegation for checkboxes ----
+  document.addEventListener("click", (e) => {
+    const cb = e.target.closest("label.cb");
+    if (!cb) return;
+    e.preventDefault();
+    toggle(cb.dataset.tower, +cb.dataset.room, cb.dataset.job);
+  });
+
+  // Initial render with empty data so the UI shows immediately
+  renderAll();
+</script>
+</body>
+</html>
