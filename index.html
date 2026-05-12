@@ -332,6 +332,29 @@
   .detail-empty {
     color: var(--fg-dim); font-size: 13px; padding: 10px 0;
   }
+
+  /* Activity log entries */
+  .activity-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+  .activity-row {
+    display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: baseline;
+    padding: 10px 12px; border-radius: 8px; background: var(--card-bg); border: 1px solid var(--card-border);
+  }
+  .activity-row .who-name { font-weight: 700; }
+  .activity-row .action {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 2px 8px; border-radius: 999px; margin-right: 6px;
+    background: var(--bar-bg); color: var(--fg-muted); font-weight: 700;
+  }
+  .activity-row .action.act-check { background: rgba(58,165,100,0.18); color: var(--green); }
+  .activity-row .action.act-uncheck { background: rgba(217,69,69,0.18); color: #d94545; }
+  .activity-row .action.act-column-mark { background: rgba(58,165,100,0.18); color: var(--green); }
+  .activity-row .action.act-column-clear { background: rgba(217,69,69,0.18); color: #d94545; }
+  .activity-row .action.act-reset { background: rgba(217,69,69,0.28); color: #d94545; }
+  .activity-row .when { color: var(--fg-dim); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .activity-row .detail { color: var(--fg-muted); font-size: 12px; margin-top: 2px; }
+
+  /* Make the PIN input look like the name input */
+  .login-card input + input { margin-top: 0; }
   .toast.show { opacity: 0.95; }
 
   @media (max-width: 600px) {
@@ -350,8 +373,9 @@
 <div id="login-overlay" class="overlay">
   <div class="login-card">
     <h2>Welcome</h2>
-    <p>Enter your name so the team knows who completed each task.</p>
+    <p>Enter your name and the property PIN to sign in.</p>
     <input id="display-name-input" placeholder="Your name (e.g. Maria)" autocomplete="given-name" />
+    <input id="property-pin-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="Property PIN" autocomplete="off" />
     <button id="login-btn" class="primary">Start</button>
     <div class="err" id="login-err"></div>
   </div>
@@ -370,7 +394,8 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
-      <button id="reset-day" class="danger">Reset all</button>
+      <button id="activity-btn" class="admin-only" style="display:none" title="View activity log">Activity</button>
+      <button id="reset-day" class="danger admin-only" style="display:none">Reset all</button>
     </div>
   </header>
 
@@ -385,15 +410,16 @@
 
 <div class="toast" id="toast"></div>
 <div class="detail-overlay" id="detail-overlay"></div>
+<div class="detail-overlay" id="activity-overlay"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
   import {
-    getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot,
-    writeBatch, getDocs, serverTimestamp
+    getFirestore, collection, doc, getDoc, setDoc, deleteDoc, onSnapshot,
+    writeBatch, getDocs, serverTimestamp, query, orderBy, limit, addDoc, Timestamp
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import {
-    getAuth, signInAnonymously, onAuthStateChanged, updateProfile
+    getAuth, signInAnonymously, onAuthStateChanged, updateProfile, getIdToken
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
   // =====================================================================
@@ -488,10 +514,22 @@
   // ---- Local state ----
   const UI_KEY = "room-tracker.ui.v1";
   const NAME_KEY = "room-tracker.name.v1";
+  const ROLE_KEY = "room-tracker.role.v1";
   let ui = { tower: "east", floor: 2 };
   try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || "{}")); } catch {}
   let completions = {}; // docId -> { tower, room, job, doneBy, doneAt }
   let displayName = localStorage.getItem(NAME_KEY) || "";
+  let currentRole = localStorage.getItem(ROLE_KEY) || "staff";  // "admin" or "staff"
+
+  // ---- Tier 1 PIN hashing ----
+  // Uses Web Crypto SubtleCrypto; salt is the *property* salt stored in
+  // /config/property.salt. PIN never leaves the device; the hash is what
+  // gets compared to /config/property.pinHash.
+  async function sha256(str) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+  async function hashPin(pin, salt) { return await sha256(`${salt}::${pin}`); }
 
   // ---- Helpers ----
   const $ = (sel) => document.querySelector(sel);
@@ -508,47 +546,97 @@
 
   // ---- Auth / login flow ----
   $("#login-btn").onclick = () => doLogin();
-  $("#display-name-input").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+  $("#display-name-input").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#property-pin-input").focus(); });
+  $("#property-pin-input").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
 
   if (displayName) {
     $("#display-name-input").value = displayName;
   }
 
   async function doLogin() {
-    const input = $("#display-name-input");
-    const name = input.value.trim();
+    const nameInput = $("#display-name-input");
+    const pinInput = $("#property-pin-input");
+    const name = nameInput.value.trim();
+    const pin = pinInput.value.trim();
     if (!name) {
       $("#login-err").textContent = "Please enter your name.";
-      input.focus();
+      nameInput.focus();
+      return;
+    }
+    if (!pin) {
+      $("#login-err").textContent = "Please enter the property PIN.";
+      pinInput.focus();
       return;
     }
     $("#login-err").textContent = "";
     $("#login-btn").disabled = true;
     $("#login-btn").textContent = "Connecting…";
+
     try {
+      // Step 1: anonymous sign-in so we can hit Firestore at all
       await signInAnonymously(auth);
-      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: name });
-      displayName = name;
-      localStorage.setItem(NAME_KEY, name);
-      $("#who-name").textContent = name;
+
+      // Step 2: load property config (salt + pinHash)
+      const cfgSnap = await getDoc(doc(db, "config", "property"));
+      if (!cfgSnap.exists()) {
+        throw new Error("Property not configured yet. Admin must run the bootstrap snippet.");
+      }
+      const { pinHash, salt } = cfgSnap.data();
+      if (!pinHash || !salt) throw new Error("Property config is missing pinHash or salt.");
+      const tryHash = await hashPin(pin, salt);
+      if (tryHash !== pinHash) {
+        throw new Error("Wrong PIN.");
+      }
+
+      // Step 3: verify name is in /staff and active
+      const lower = name.toLowerCase();
+      const staffSnap = await getDoc(doc(db, "staff", lower));
+      if (!staffSnap.exists()) {
+        throw new Error("That name isn't on the staff list. Ask the admin to add you.");
+      }
+      const staff = staffSnap.data();
+      if (staff.active === false) {
+        throw new Error("Your account is inactive. Contact the admin.");
+      }
+
+      // Step 4: set the canonical display name on the auth token (used by rules)
+      const canonical = staff.name || name;
+      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: canonical });
+      // Force a token refresh so the new displayName is in the auth token for rules
+      if (auth.currentUser) await getIdToken(auth.currentUser, true);
+
+      displayName = canonical;
+      currentRole = staff.role === "admin" ? "admin" : "staff";
+      localStorage.setItem(NAME_KEY, canonical);
+      localStorage.setItem(ROLE_KEY, currentRole);
+      $("#who-name").textContent = canonical;
+
+      // Reveal admin-only buttons if applicable
+      applyRoleVisibility();
+
       $("#login-overlay").style.display = "none";
       $("#app").style.display = "";
       startListening();
     } catch (e) {
       console.error(e);
-      $("#login-err").textContent = "Couldn't sign in: " + (e.message || e.code || "unknown error");
+      $("#login-err").textContent = e.message || e.code || "Couldn't sign in.";
       $("#login-btn").disabled = false;
       $("#login-btn").textContent = "Start";
     }
   }
 
+  function applyRoleVisibility() {
+    const isAdmin = currentRole === "admin";
+    document.querySelectorAll(".admin-only").forEach(el => {
+      el.style.display = isAdmin ? "" : "none";
+    });
+  }
+
+  // Don't auto-skip the login screen anymore — even returning users must
+  // enter the PIN on each session for a basic security step.
+  // (Display name is still remembered for convenience.)
   onAuthStateChanged(auth, (user) => {
-    if (user && displayName) {
-      $("#login-overlay").style.display = "none";
-      $("#app").style.display = "";
-      $("#who-name").textContent = displayName;
-      startListening();
-    }
+    // No auto-login; login screen always shows until PIN verified.
   });
 
   // Allow changing name later
@@ -590,6 +678,20 @@
     });
   }
 
+  // ---- Activity log helper ----
+  // Each entry auto-expires 30 days later via Firestore TTL on `expireAt`.
+  function logActivity(action, payload) {
+    const expireAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    return addDoc(collection(db, "activity"), {
+      action,                  // "check" | "uncheck" | "column-mark" | "column-clear" | "reset"
+      doneBy: displayName,
+      role:   currentRole,
+      at:     serverTimestamp(),
+      expireAt: Timestamp.fromDate(expireAt),
+      ...payload
+    }).catch(e => { console.error("activity log failed", e); });
+  }
+
   // ---- Writes ----
   async function toggle(tower, room, job) {
     const id = docId(tower, room, job);
@@ -598,14 +700,18 @@
       // Optimistic remove
       delete completions[id];
       renderAll();
-      try { await deleteDoc(ref); }
-      catch (e) { console.error(e); showToast("Couldn't save"); }
+      try {
+        await deleteDoc(ref);
+        logActivity("uncheck", { tower, room, job });
+      } catch (e) { console.error(e); showToast("Couldn't save"); }
     } else {
       const data = { tower, room, job, doneBy: displayName, doneAt: serverTimestamp() };
       completions[id] = { ...data, doneAt: new Date() };
       renderAll();
-      try { await setDoc(ref, data); }
-      catch (e) { console.error(e); showToast("Couldn't save"); }
+      try {
+        await setDoc(ref, data);
+        logActivity("check", { tower, room, job });
+      } catch (e) { console.error(e); showToast("Couldn't save"); }
     }
   }
 
@@ -621,14 +727,18 @@
         }
       }
     }
-    try { await batch.commit(); }
-    catch (e) { console.error(e); showToast("Batch save failed"); }
+    try {
+      await batch.commit();
+      logActivity(value ? "floor-mark" : "floor-clear", { tower: tower.id, floor: floor.num, roomCount: floor.rooms.length });
+    } catch (e) { console.error(e); showToast("Batch save failed"); }
   }
 
   async function resetAll() {
+    if (currentRole !== "admin") { showToast("Only admins can reset"); return; }
     if (!confirm("Clear ALL checkboxes across both towers? This affects everyone using this app.")) return;
     try {
       const snap = await getDocs(collection(db, "completions"));
+      const beforeCount = snap.size;
       // Batches max 500 ops
       let batch = writeBatch(db), n = 0;
       for (const d of snap.docs) {
@@ -636,6 +746,7 @@
         if (n === 450) { await batch.commit(); batch = writeBatch(db); n = 0; }
       }
       if (n > 0) await batch.commit();
+      logActivity("reset", { cleared: beforeCount });
       showToast("All cleared");
     } catch (e) { console.error(e); showToast("Reset failed"); }
   }
@@ -877,7 +988,99 @@
   // Close detail with Escape
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && ui.detailJob) closeDetail();
+    if (e.key === "Escape") closeActivity();
   });
+
+  // ---- Activity log viewer (admin only) ----
+  function jobLabel(key) {
+    const j = JOBS.find(j => j.key === key);
+    return j ? j.label : key;
+  }
+  function towerLabel(id) {
+    const t = TOWERS.find(t => t.id === id);
+    return t ? t.name : id;
+  }
+  function timeAgo(d) {
+    if (!d) return "";
+    const s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 60)     return `${s}s ago`;
+    if (s < 3600)   return `${Math.floor(s/60)}m ago`;
+    if (s < 86400)  return `${Math.floor(s/3600)}h ago`;
+    if (s < 7*86400)return `${Math.floor(s/86400)}d ago`;
+    return d.toLocaleDateString();
+  }
+  function describeAction(a) {
+    switch (a.action) {
+      case "check":
+        return `checked <b>${jobLabel(a.job)}</b> for ${towerLabel(a.tower)} room ${a.room}`;
+      case "uncheck":
+        return `un-checked <b>${jobLabel(a.job)}</b> for ${towerLabel(a.tower)} room ${a.room}`;
+      case "column-mark":
+        return `marked the whole <b>${jobLabel(a.job)}</b> column for ${towerLabel(a.tower)} Floor ${a.floor} (${a.roomCount||"?"} rooms)`;
+      case "column-clear":
+        return `cleared the whole <b>${jobLabel(a.job)}</b> column for ${towerLabel(a.tower)} Floor ${a.floor} (${a.roomCount||"?"} rooms)`;
+      case "floor-mark":
+        return `marked all tasks on ${towerLabel(a.tower)} Floor ${a.floor} (${a.roomCount||"?"} rooms)`;
+      case "floor-clear":
+        return `cleared all tasks on ${towerLabel(a.tower)} Floor ${a.floor} (${a.roomCount||"?"} rooms)`;
+      case "reset":
+        return `<b>reset everything</b> across both towers (${a.cleared||"?"} entries removed)`;
+      default:
+        return `did "${a.action}"`;
+    }
+  }
+  async function openActivity() {
+    if (currentRole !== "admin") { showToast("Admin only"); return; }
+    const overlay = $("#activity-overlay");
+    overlay.innerHTML = `<div class="detail-modal">
+      <div class="detail-head">
+        <div>
+          <h3>Activity log</h3>
+          <div class="detail-sub">Loading…</div>
+        </div>
+        <button class="close-btn" data-activity-close title="Close">×</button>
+      </div>
+      <div id="activity-list-container"></div>
+    </div>`;
+    overlay.classList.add("open");
+
+    try {
+      const snap = await getDocs(query(collection(db, "activity"), orderBy("at", "desc"), limit(200)));
+      const entries = [];
+      snap.forEach(d => {
+        const v = d.data();
+        const at = v.at && v.at.toDate ? v.at.toDate() : null;
+        entries.push({ ...v, at });
+      });
+      const head = overlay.querySelector(".detail-sub");
+      head.textContent = entries.length === 0
+        ? "No activity yet."
+        : `${entries.length} of the most recent entries · 30-day retention`;
+      const list = overlay.querySelector("#activity-list-container");
+      list.innerHTML = `<div class="activity-list">${
+        entries.map(e => `
+          <div class="activity-row">
+            <div>
+              <span class="action act-${e.action}">${e.action}</span>
+              <span class="who-name">${e.doneBy || "?"}</span>
+              <span class="detail">${describeAction(e)}</span>
+            </div>
+            <div class="when" title="${e.at ? e.at.toLocaleString() : ""}">${e.at ? timeAgo(e.at) : ""}</div>
+          </div>
+        `).join("")
+      }</div>`;
+    } catch (e) {
+      console.error(e);
+      const head = overlay.querySelector(".detail-sub");
+      head.textContent = "Couldn't load: " + (e.message || e.code || "error");
+    }
+  }
+  function closeActivity() {
+    const overlay = $("#activity-overlay");
+    overlay.classList.remove("open");
+    overlay.innerHTML = "";
+  }
+  document.getElementById("activity-btn").onclick = openActivity;
 
   async function toggleJobColumn(jobKey) {
     const tower = getTower(ui.tower);
@@ -893,8 +1096,12 @@
         batch.delete(ref);
       }
     }
-    try { await batch.commit(); }
-    catch (e) { console.error(e); showToast("Column update failed"); }
+    try {
+      await batch.commit();
+      logActivity(value ? "column-mark" : "column-clear", {
+        tower: tower.id, floor: floor.num, job: jobKey, roomCount: floor.rooms.length
+      });
+    } catch (e) { console.error(e); showToast("Column update failed"); }
   }
 
   // ---- Event delegation for checkboxes, column toggle, and detail view ----
@@ -908,6 +1115,16 @@
     // Detail view: backdrop click (clicking outside the modal)
     if (e.target.id === "detail-overlay") {
       closeDetail();
+      return;
+    }
+    // Activity log: close button
+    if (e.target.closest("[data-activity-close]")) {
+      e.preventDefault();
+      closeActivity();
+      return;
+    }
+    if (e.target.id === "activity-overlay") {
+      closeActivity();
       return;
     }
     // Detail view: filter buttons
