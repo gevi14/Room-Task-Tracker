@@ -184,6 +184,20 @@
   }
   th:first-child, td:first-child { text-align: left; padding-left: 14px; }
   tr:last-child td { border-bottom: none; }
+  th .col-toggle {
+    display: block; margin: 4px auto 0;
+    font-size: 10px; padding: 3px 9px;
+    border-radius: 999px; font-weight: 600;
+    text-transform: none; letter-spacing: 0;
+    background: var(--card-bg); border: 1px solid var(--btn-border);
+    color: var(--fg-muted); cursor: pointer;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  th .col-toggle:hover { background: var(--btn-hover); color: var(--fg); }
+  th .col-toggle.all-done {
+    background: var(--green); border-color: var(--green); color: #fff;
+  }
+  th .col-toggle.all-done:hover { opacity: 0.85; }
   tr.done { background: var(--row-done-bg); }
   tr.done td:first-child { color: var(--green); font-weight: 700; }
   .room-num { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14px; }
@@ -241,6 +255,83 @@
     background: var(--toast-bg); color: var(--toast-fg); padding: 10px 16px; border-radius: 999px;
     font-size: 13px; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 200;
   }
+
+  /* Stat card click affordance */
+  .stat.clickable { cursor: pointer; border-radius: 8px; padding: 4px; margin: -4px; transition: background 0.12s; }
+  .stat.clickable:hover { background: var(--btn-hover); }
+
+  /* Detail view overlay */
+  .detail-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+    z-index: 150; display: none; align-items: flex-start; justify-content: center;
+    padding: 20px; overflow-y: auto;
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  }
+  .detail-overlay.open { display: flex; }
+  .detail-modal {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 14px; max-width: 1000px; width: 100%; padding: 20px 22px;
+    margin-top: 30px; box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  }
+  .detail-head {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+    margin-bottom: 16px;
+  }
+  .detail-head h3 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .detail-head .detail-sub { color: var(--fg-muted); font-size: 13px; margin-top: 3px; }
+  .detail-head .close-btn {
+    background: transparent; border: 1px solid var(--btn-border); border-radius: 8px;
+    width: 32px; height: 32px; padding: 0; cursor: pointer;
+    font-size: 20px; line-height: 1; color: var(--fg-muted);
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .detail-head .close-btn:hover { background: var(--btn-hover); color: var(--fg); }
+
+  .detail-filters {
+    display: flex; gap: 6px; margin-bottom: 18px; flex-wrap: wrap;
+  }
+  .detail-filters .filter-btn {
+    background: var(--card-bg); border: 1px solid var(--btn-border);
+    border-radius: 999px; padding: 6px 13px; font-size: 12px; font-weight: 600;
+    cursor: pointer; color: var(--fg-muted);
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+  }
+  .detail-filters .filter-btn:hover { background: var(--btn-hover); }
+  .detail-filters .filter-btn.active {
+    background: var(--accent); color: var(--accent-fg); border-color: var(--accent);
+  }
+
+  .detail-tower { margin-bottom: 18px; }
+  .detail-tower h4 {
+    margin: 0 0 10px; font-size: 13px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-muted);
+  }
+  .detail-floor {
+    display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+    margin-bottom: 8px; padding: 4px 0;
+  }
+  .detail-floor .floor-label {
+    font-size: 11px; color: var(--fg-dim);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    min-width: 70px; font-weight: 700;
+  }
+  .room-chip {
+    display: inline-flex; align-items: center;
+    padding: 5px 11px; border-radius: 999px; cursor: pointer;
+    font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+    border: 1px solid var(--btn-border); background: var(--card-bg); color: var(--fg);
+    transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.08s;
+    user-select: none;
+  }
+  .room-chip:hover { border-color: var(--accent); }
+  .room-chip:active { transform: scale(0.95); }
+  .room-chip.done {
+    background: var(--green); border-color: var(--green); color: #fff;
+  }
+  .room-chip.done:hover { opacity: 0.88; }
+  .detail-empty {
+    color: var(--fg-dim); font-size: 13px; padding: 10px 0;
+  }
   .toast.show { opacity: 0.95; }
 
   @media (max-width: 600px) {
@@ -293,6 +384,7 @@
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="detail-overlay" id="detail-overlay"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -578,10 +670,14 @@
     if (p >= 33)  return "t-orange";
     return "t-red";
   }
-  function statCard(label, value, sub, pct) {
+  function statCard(label, value, sub, pct, jobKey) {
     const tier = pctTier(pct);
     const el = document.createElement("div");
-    el.className = "stat";
+    el.className = "stat" + (jobKey ? " clickable" : "");
+    if (jobKey) {
+      el.dataset.job = jobKey;
+      el.title = `Click to see all rooms for "${label}"`;
+    }
     el.innerHTML = `
       <div class="label">${label}</div>
       <div class="value ${tier}">${value}</div>
@@ -597,7 +693,7 @@
     el.appendChild(statCard(`${tower.name}`, `${t.pct}%`, `${t.done}/${t.total} tasks`, t.pct));
     for (const j of JOBS) {
       const s = jobStatsInTower(tower, j.key);
-      el.appendChild(statCard(j.label, `${s.pct}%`, `${s.done}/${s.total} rooms`, s.pct));
+      el.appendChild(statCard(j.label, `${s.pct}%`, `${s.done}/${s.total} rooms`, s.pct, j.key));
     }
   }
 
@@ -654,7 +750,10 @@
 
     const table = document.createElement("table");
     const thead = document.createElement("thead");
-    thead.innerHTML = `<tr><th>Room</th>${JOBS.map(j => `<th>${j.label}</th>`).join("")}</tr>`;
+    thead.innerHTML = `<tr><th>Room</th>${JOBS.map(j => {
+      const allDone = floor.rooms.every(r => isChecked(tower.id, r, j.key));
+      return `<th>${j.label}<button class="col-toggle${allDone ? " all-done" : ""}" data-job="${j.key}">${allDone ? "Clear all" : "Select all"}</button></th>`;
+    }).join("")}</tr>`;
     table.appendChild(thead);
 
     const tbody = document.createElement("tbody");
@@ -698,10 +797,146 @@
     renderTabs();
     renderFloorView();
     renderMeta();
+    if (ui.detailJob) renderDetail();
   }
 
-  // ---- Event delegation for checkboxes ----
+  // ---- Detail view (click a task % to open) ----
+  function openDetail(jobKey) {
+    ui.detailJob = jobKey;
+    if (!ui.detailFilter) ui.detailFilter = "all";
+    renderDetail();
+  }
+  function closeDetail() {
+    ui.detailJob = null;
+    $("#detail-overlay").classList.remove("open");
+    $("#detail-overlay").innerHTML = "";
+  }
+  function renderDetail() {
+    if (!ui.detailJob) return;
+    const job = JOBS.find(j => j.key === ui.detailJob);
+    if (!job) { closeDetail(); return; }
+    const filter = ui.detailFilter || "all";
+
+    let totalDone = 0, totalRooms = 0;
+    for (const t of TOWERS) for (const f of t.floors) for (const r of f.rooms) {
+      totalRooms++;
+      if (isChecked(t.id, r, job.key)) totalDone++;
+    }
+    const totalIncomplete = totalRooms - totalDone;
+    const pct = totalRooms ? Math.round(totalDone/totalRooms*100) : 0;
+
+    const parts = [];
+    parts.push(`
+      <div class="detail-head">
+        <div>
+          <h3>${job.label}</h3>
+          <div class="detail-sub">${totalDone}/${totalRooms} rooms done · ${pct}%</div>
+        </div>
+        <button class="close-btn" data-detail-close title="Close">×</button>
+      </div>
+      <div class="detail-filters">
+        <button class="filter-btn ${filter==='all'?'active':''}" data-filter="all">All (${totalRooms})</button>
+        <button class="filter-btn ${filter==='done'?'active':''}" data-filter="done">Completed (${totalDone})</button>
+        <button class="filter-btn ${filter==='todo'?'active':''}" data-filter="todo">Incomplete (${totalIncomplete})</button>
+      </div>
+    `);
+
+    for (const tower of TOWERS) {
+      let towerBody = `<div class="detail-tower"><h4>${tower.name}</h4>`;
+      let towerHasRows = false;
+      for (const floor of tower.floors) {
+        const rooms = floor.rooms.filter(r => {
+          const done = isChecked(tower.id, r, job.key);
+          if (filter === "done") return done;
+          if (filter === "todo") return !done;
+          return true;
+        });
+        if (rooms.length === 0) continue;
+        towerHasRows = true;
+        towerBody += `<div class="detail-floor">
+          <span class="floor-label">Floor ${floor.num}</span>
+          ${rooms.map(r => {
+            const done = isChecked(tower.id, r, job.key);
+            return `<span class="room-chip${done?' done':''}" data-tower="${tower.id}" data-room="${r}" data-job="${job.key}">${r}</span>`;
+          }).join("")}
+        </div>`;
+      }
+      towerBody += `</div>`;
+      if (towerHasRows) {
+        parts.push(towerBody);
+      } else {
+        parts.push(`<div class="detail-tower"><h4>${tower.name}</h4><div class="detail-empty">No rooms match this filter.</div></div>`);
+      }
+    }
+
+    const overlay = $("#detail-overlay");
+    overlay.innerHTML = `<div class="detail-modal">${parts.join("")}</div>`;
+    overlay.classList.add("open");
+  }
+
+  // Close detail with Escape
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && ui.detailJob) closeDetail();
+  });
+
+  async function toggleJobColumn(jobKey) {
+    const tower = getTower(ui.tower);
+    const floor = getFloor(tower, ui.floor);
+    const allDone = floor.rooms.every(r => isChecked(tower.id, r, jobKey));
+    const value = !allDone;
+    const batch = writeBatch(db);
+    for (const r of floor.rooms) {
+      const ref = doc(db, "completions", `${tower.id}-${r}-${jobKey}`);
+      if (value) {
+        batch.set(ref, { tower: tower.id, room: r, job: jobKey, doneBy: displayName, doneAt: serverTimestamp() });
+      } else {
+        batch.delete(ref);
+      }
+    }
+    try { await batch.commit(); }
+    catch (e) { console.error(e); showToast("Column update failed"); }
+  }
+
+  // ---- Event delegation for checkboxes, column toggle, and detail view ----
   document.addEventListener("click", (e) => {
+    // Detail view: close button
+    if (e.target.closest("[data-detail-close]")) {
+      e.preventDefault();
+      closeDetail();
+      return;
+    }
+    // Detail view: backdrop click (clicking outside the modal)
+    if (e.target.id === "detail-overlay") {
+      closeDetail();
+      return;
+    }
+    // Detail view: filter buttons
+    const filterBtn = e.target.closest("[data-filter]");
+    if (filterBtn && ui.detailJob) {
+      ui.detailFilter = filterBtn.dataset.filter;
+      renderDetail();
+      return;
+    }
+    // Detail view: room chip toggle
+    const chip = e.target.closest(".room-chip");
+    if (chip) {
+      toggle(chip.dataset.tower, +chip.dataset.room, chip.dataset.job);
+      return;
+    }
+    // Open detail view by clicking a task stat card
+    const stat = e.target.closest(".stat.clickable");
+    if (stat && stat.dataset.job) {
+      openDetail(stat.dataset.job);
+      return;
+    }
+    // Column toggle
+    const colBtn = e.target.closest(".col-toggle");
+    if (colBtn) {
+      e.preventDefault();
+      toggleJobColumn(colBtn.dataset.job);
+      return;
+    }
+    // Checkbox toggle
     const cb = e.target.closest("label.cb");
     if (!cb) return;
     e.preventDefault();
