@@ -355,6 +355,34 @@
 
   /* Make the PIN input look like the name input */
   .login-card input + input { margin-top: 0; }
+
+  /* Task editor */
+  .task-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .task-row {
+    display: grid; grid-template-columns: 1fr auto auto auto; gap: 6px; align-items: center;
+  }
+  .task-row input[type="text"] {
+    padding: 9px 12px; font: inherit; font-size: 14px;
+    border: 1px solid var(--btn-border); border-radius: 8px;
+    background: var(--card-bg); color: var(--fg);
+  }
+  .task-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
+  .task-row button.iconbtn {
+    width: 36px; height: 36px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px; line-height: 1;
+  }
+  .task-row .del-btn { color: var(--danger-fg); border-color: var(--danger-border); }
+  .task-row .del-btn:hover { background: var(--danger-hover); }
+  .task-row.deleted input[type="text"] { text-decoration: line-through; opacity: 0.5; }
+  .task-add { margin-top: 6px; }
+  .task-footer {
+    display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px;
+    padding-top: 14px; border-top: 1px solid var(--card-border);
+  }
+  .task-help {
+    color: var(--fg-muted); font-size: 12px; margin: 6px 0 0;
+  }
   .toast.show { opacity: 0.95; }
 
   @media (max-width: 600px) {
@@ -394,6 +422,7 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
+      <button id="edit-tasks-btn" class="admin-only" style="display:none" title="Rename, add, or remove tasks">Edit tasks</button>
       <button id="activity-btn" class="admin-only" style="display:none" title="View activity log">Activity</button>
       <button id="reset-day" class="danger admin-only" style="display:none">Reset all</button>
     </div>
@@ -411,6 +440,7 @@
 <div class="toast" id="toast"></div>
 <div class="detail-overlay" id="detail-overlay"></div>
 <div class="detail-overlay" id="activity-overlay"></div>
+<div class="detail-overlay" id="edit-tasks-overlay"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -452,14 +482,15 @@
   const db = getFirestore(app);
   const auth = getAuth(app);
 
-  // ---- Room configuration (matches the desktop tracker) ----
-  const JOBS = [
+  // ---- Tasks (loaded live from /config/jobs; falls back to defaults if missing) ----
+  const DEFAULT_JOBS = [
     { key: "bed",    label: "Bed Pads" },
     { key: "shower", label: "Shower Bottles" },
     { key: "lotion", label: "Lotion" },
     { key: "beacon", label: "Beacon" },
     { key: "closet", label: "Closet Hooks" }
   ];
+  let JOBS = DEFAULT_JOBS.map(j => ({ ...j }));  // mutable; replaced live by onSnapshot
   function range(start, end, skip = []) {
     const out = [], s = new Set(skip);
     for (let n = start; n <= end; n++) if (!s.has(n)) out.push(n);
@@ -663,10 +694,24 @@
 
   // ---- Firestore real-time listener ----
   let unsub = null;
+  let unsubJobs = null;
   let listenerStarted = false;
   function startListening() {
     if (listenerStarted) return;
     listenerStarted = true;
+
+    // Live task list (admin can rename / add / remove)
+    unsubJobs = onSnapshot(doc(db, "config", "jobs"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          JOBS = data.items.map(it => ({ key: it.key, label: it.label }));
+          renderAll();
+        }
+      }
+      // else: keep DEFAULT_JOBS fallback (first time admin opens "Edit tasks", it'll seed this doc)
+    }, (err) => { console.warn("jobs listener", err); });
+
     unsub = onSnapshot(collection(db, "completions"), (snap) => {
       const next = {};
       snap.forEach((d) => { next[d.id] = d.data(); });
@@ -988,7 +1033,7 @@
   // Close detail with Escape
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && ui.detailJob) closeDetail();
-    if (e.key === "Escape") closeActivity();
+    if (e.key === "Escape") { closeActivity(); closeEditTasks(); }
   });
 
   // ---- Activity log viewer (admin only) ----
@@ -1082,6 +1127,135 @@
   }
   document.getElementById("activity-btn").onclick = openActivity;
 
+  // ---- Edit tasks (admin only) ----
+  // Holds the in-progress edit; not saved until admin clicks "Save".
+  let editingTasks = null;
+
+  function newJobKey() { return "task_" + Math.random().toString(36).slice(2, 10); }
+
+  function openEditTasks() {
+    if (currentRole !== "admin") { showToast("Admin only"); return; }
+    editingTasks = JOBS.map(j => ({ key: j.key, label: j.label, deleted: false, isNew: false }));
+    renderEditTasks();
+  }
+  function closeEditTasks() {
+    editingTasks = null;
+    const overlay = $("#edit-tasks-overlay");
+    overlay.classList.remove("open");
+    overlay.innerHTML = "";
+  }
+  function renderEditTasks() {
+    const overlay = $("#edit-tasks-overlay");
+    overlay.innerHTML = `
+      <div class="detail-modal">
+        <div class="detail-head">
+          <div>
+            <h3>Edit tasks</h3>
+            <div class="detail-sub">Rename, reorder, add, or remove the tasks shown for every room.</div>
+          </div>
+          <button class="close-btn" data-edit-tasks-close title="Close">×</button>
+        </div>
+        <div class="task-list" id="task-list"></div>
+        <button id="task-add-btn" class="task-add">+ Add task</button>
+        <p class="task-help">
+          Removing a task hides it from the app but doesn't erase existing check-marks immediately —
+          they become orphaned in the database and clear out over time. Reordering doesn't affect any data.
+          Changes apply to every device within a second of saving.
+        </p>
+        <div class="task-footer">
+          <button data-edit-tasks-close>Cancel</button>
+          <button id="task-save-btn" class="primary">Save changes</button>
+        </div>
+      </div>`;
+    overlay.classList.add("open");
+    redrawTaskRows();
+    document.getElementById("task-add-btn").onclick = () => {
+      editingTasks.push({ key: newJobKey(), label: "", deleted: false, isNew: true });
+      redrawTaskRows();
+      // focus the newly added input
+      const inputs = overlay.querySelectorAll(".task-row input[type='text']");
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    };
+    document.getElementById("task-save-btn").onclick = saveTaskEdits;
+  }
+  function redrawTaskRows() {
+    const list = document.getElementById("task-list");
+    list.innerHTML = editingTasks.map((t, i) => `
+      <div class="task-row${t.deleted ? " deleted" : ""}" data-idx="${i}">
+        <input type="text" value="${(t.label || "").replace(/"/g,"&quot;")}" placeholder="Task name" ${t.deleted ? "disabled" : ""} />
+        <button class="iconbtn" data-act="up"   ${i===0 ? "disabled" : ""} title="Move up">↑</button>
+        <button class="iconbtn" data-act="down" ${i===editingTasks.length-1 ? "disabled" : ""} title="Move down">↓</button>
+        <button class="iconbtn del-btn" data-act="del" title="${t.deleted ? "Undo delete" : "Delete"}">${t.deleted ? "↺" : "×"}</button>
+      </div>`).join("");
+    // Wire up per-row events
+    list.querySelectorAll(".task-row").forEach(row => {
+      const idx = +row.dataset.idx;
+      const input = row.querySelector("input[type='text']");
+      input.addEventListener("input", (e) => { editingTasks[idx].label = e.target.value; });
+      row.querySelectorAll("button[data-act]").forEach(btn => {
+        btn.onclick = () => {
+          const act = btn.dataset.act;
+          if (act === "up" && idx > 0) {
+            [editingTasks[idx-1], editingTasks[idx]] = [editingTasks[idx], editingTasks[idx-1]];
+          } else if (act === "down" && idx < editingTasks.length - 1) {
+            [editingTasks[idx+1], editingTasks[idx]] = [editingTasks[idx], editingTasks[idx+1]];
+          } else if (act === "del") {
+            // Truly removing a brand-new (unsaved) row is fine.
+            // For existing tasks we toggle .deleted so admin can undo before saving.
+            if (editingTasks[idx].isNew) {
+              editingTasks.splice(idx, 1);
+            } else {
+              editingTasks[idx].deleted = !editingTasks[idx].deleted;
+            }
+          }
+          redrawTaskRows();
+        };
+      });
+    });
+  }
+  async function saveTaskEdits() {
+    // Build the final array, dropping deleted items and trimming labels
+    const finalItems = [];
+    const seenKeys = new Set();
+    for (const t of editingTasks) {
+      if (t.deleted) continue;
+      const label = (t.label || "").trim();
+      if (!label) {
+        showToast("Every task needs a name");
+        return;
+      }
+      if (seenKeys.has(t.key)) {
+        // very defensive — shouldn't happen
+        continue;
+      }
+      seenKeys.add(t.key);
+      finalItems.push({ key: t.key, label });
+    }
+    if (finalItems.length === 0) {
+      showToast("Need at least one task");
+      return;
+    }
+    const btn = document.getElementById("task-save-btn");
+    btn.disabled = true;
+    btn.textContent = "Saving…";
+    try {
+      await setDoc(doc(db, "config", "jobs"), {
+        items: finalItems,
+        updatedAt: serverTimestamp(),
+        updatedBy: displayName
+      });
+      logActivity("tasks-edit", { count: finalItems.length });
+      showToast("Tasks updated");
+      closeEditTasks();
+    } catch (e) {
+      console.error(e);
+      showToast("Save failed: " + (e.message || e.code || ""));
+      btn.disabled = false;
+      btn.textContent = "Save changes";
+    }
+  }
+  document.getElementById("edit-tasks-btn").onclick = openEditTasks;
+
   async function toggleJobColumn(jobKey) {
     const tower = getTower(ui.tower);
     const floor = getFloor(tower, ui.floor);
@@ -1125,6 +1299,16 @@
     }
     if (e.target.id === "activity-overlay") {
       closeActivity();
+      return;
+    }
+    // Edit-tasks: close button or backdrop
+    if (e.target.closest("[data-edit-tasks-close]")) {
+      e.preventDefault();
+      closeEditTasks();
+      return;
+    }
+    if (e.target.id === "edit-tasks-overlay") {
+      closeEditTasks();
       return;
     }
     // Detail view: filter buttons
