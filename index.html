@@ -133,6 +133,67 @@
   .bar > span.t-yellow { background: #d9b317; }
   .bar > span.t-green  { background: var(--green); }
 
+  /* Task cycle ("Started May 10 · Target May 20") + Start button on stat cards */
+  .stat .cycle-line {
+    margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px;
+    font-size: 11px; color: var(--fg-muted);
+  }
+  .stat .cycle-line .cyc-sep { opacity: 0.5; }
+  .stat .cycle-line .cyc-chip {
+    margin-left: auto; padding: 1px 7px; border-radius: 999px; font-weight: 600;
+    font-size: 10px; letter-spacing: 0.02em;
+  }
+  .stat .cycle-line .cyc-ok   { background: rgba(58,165,100,0.18); color: var(--green); }
+  .stat .cycle-line .cyc-warn { background: rgba(238,138,31,0.22); color: #c47013; }
+  .stat .cycle-line .cyc-due  { background: rgba(238,138,31,0.30); color: #ad5a06; }
+  .stat .cycle-line .cyc-late { background: rgba(217,69,69,0.22); color: #c12d2d; }
+  [data-theme="dark"] .stat .cycle-line .cyc-warn { color: #ffb86b; }
+  [data-theme="dark"] .stat .cycle-line .cyc-due  { color: #ffa54a; }
+  [data-theme="dark"] .stat .cycle-line .cyc-late { color: #ff8a8a; }
+
+  .stat .cycle-start-btn {
+    margin-top: 6px; padding: 3px 9px; font-size: 11px; font-weight: 600;
+    background: var(--btn-bg); border: 1px dashed var(--card-border); border-radius: 999px;
+    color: var(--fg-muted); cursor: pointer;
+  }
+  .stat .cycle-start-btn:hover { background: var(--btn-hover); color: var(--fg); border-style: solid; }
+
+  /* Cycle date-picker overlay */
+  .cycle-modal .form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+  .cycle-modal .form-row label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-dim); }
+  .cycle-modal .form-row input[type="date"] {
+    width: 100%; padding: 10px 12px; font: inherit; font-size: 15px;
+    border: 1px solid var(--card-border); border-radius: 8px;
+    background: var(--input-bg, var(--bar-bg)); color: var(--fg);
+  }
+  .cycle-modal .cycle-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+  .cycle-modal .cycle-footer button { padding: 9px 16px; font-weight: 600; }
+
+  /* Active Cycles section inside admin Activity overlay */
+  .cycles-section {
+    background: var(--bar-bg); border-radius: 10px; padding: 10px 12px; margin-bottom: 14px;
+  }
+  .cycles-section .cycles-header {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--fg-dim); margin-bottom: 8px;
+  }
+  .cycles-section .cycles-empty { font-size: 13px; color: var(--fg-muted); }
+  .cycle-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px 4px;
+    border-top: 1px solid var(--card-border);
+  }
+  .cycle-row:first-of-type { border-top: none; }
+  .cycle-row-main { flex: 1; min-width: 0; }
+  .cycle-row-title { font-weight: 600; font-size: 14px; }
+  .cycle-row-pct { color: var(--fg-muted); font-weight: 500; margin-left: 4px; font-size: 12px; }
+  .cycle-row-sub { font-size: 11px; color: var(--fg-muted); margin-top: 2px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .cycle-row-actions { display: flex; gap: 6px; }
+  .cycle-row-actions button {
+    padding: 4px 10px; font-size: 12px; font-weight: 600; border-radius: 999px;
+    background: var(--btn-bg); border: 1px solid var(--card-border); color: var(--fg); cursor: pointer;
+  }
+  .cycle-row-actions button:hover { background: var(--btn-hover); }
+
   .tower-bar {
     display: flex; gap: 6px; margin-bottom: 10px; background: var(--bar-bg); border-radius: 10px;
     padding: 4px; width: fit-content;
@@ -356,6 +417,29 @@
   /* Make the PIN input look like the name input */
   .login-card input + input { margin-top: 0; }
 
+  /* Microsoft sign-in button */
+  .ms-btn {
+    width: 100%; padding: 12px; font-size: 15px; font-weight: 600;
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+    background: var(--card-bg); color: var(--fg);
+    border: 1.5px solid var(--btn-border); border-radius: 10px;
+    margin-bottom: 14px;
+  }
+  .ms-btn:hover { background: var(--btn-hover); border-color: var(--fg); }
+  .ms-btn svg { display: block; }
+
+  .login-divider {
+    position: relative; text-align: center; margin: 8px 0 14px;
+    color: var(--fg-dim); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .login-divider::before, .login-divider::after {
+    content: ""; position: absolute; top: 50%; width: calc(50% - 80px); height: 1px;
+    background: var(--card-border);
+  }
+  .login-divider::before { left: 0; }
+  .login-divider::after  { right: 0; }
+  .login-divider span { background: var(--card-bg); padding: 0 8px; position: relative; }
+
   /* Task editor */
   .task-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
   .task-row {
@@ -401,7 +485,25 @@
 <div id="login-overlay" class="overlay">
   <div class="login-card">
     <h2>Welcome</h2>
-    <p>Enter your name and the property PIN to sign in.</p>
+    <p>Enter your name and the property PIN to start.</p>
+
+    <!--
+      M365 sign-in is wired up but hidden. To enable later:
+      1. Complete Azure AD app registration + Firebase Microsoft provider setup (see SECURITY-MICROSOFT.md).
+      2. Delete the two style="display:none" attributes below.
+    -->
+    <button id="microsoft-signin-btn" class="ms-btn" style="display:none">
+      <svg viewBox="0 0 23 23" width="16" height="16" aria-hidden="true">
+        <rect width="10" height="10" fill="#f25022"/>
+        <rect x="13" width="10" height="10" fill="#7fba00"/>
+        <rect y="13" width="10" height="10" fill="#00a4ef"/>
+        <rect x="13" y="13" width="10" height="10" fill="#ffb900"/>
+      </svg>
+      <span>Sign in with Microsoft</span>
+    </button>
+
+    <div class="login-divider" style="display:none"><span>or use property PIN</span></div>
+
     <input id="display-name-input" placeholder="Your name (e.g. Maria)" autocomplete="given-name" />
     <input id="property-pin-input" type="password" inputmode="numeric" pattern="[0-9]*" placeholder="Property PIN" autocomplete="off" />
     <button id="login-btn" class="primary">Start</button>
@@ -441,6 +543,7 @@
 <div class="detail-overlay" id="detail-overlay"></div>
 <div class="detail-overlay" id="activity-overlay"></div>
 <div class="detail-overlay" id="edit-tasks-overlay"></div>
+<div class="detail-overlay" id="cycle-overlay"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -449,7 +552,8 @@
     writeBatch, getDocs, serverTimestamp, query, orderBy, limit, addDoc, Timestamp
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
   import {
-    getAuth, signInAnonymously, onAuthStateChanged, updateProfile, getIdToken
+    getAuth, signInAnonymously, onAuthStateChanged, updateProfile, getIdToken,
+    OAuthProvider, signInWithPopup, signOut
   } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
   // =====================================================================
@@ -549,6 +653,7 @@
   let ui = { tower: "east", floor: 2 };
   try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || "{}")); } catch {}
   let completions = {}; // docId -> { tower, room, job, doneBy, doneAt }
+  let cycles = {};      // jobKey -> { startDate: "YYYY-MM-DD", targetDate: "YYYY-MM-DD", startedBy, startedAt }
   let displayName = localStorage.getItem(NAME_KEY) || "";
   let currentRole = localStorage.getItem(ROLE_KEY) || "staff";  // "admin" or "staff"
 
@@ -663,6 +768,70 @@
     });
   }
 
+  // ---- Sign in with Microsoft ----
+  async function doMicrosoftLogin() {
+    $("#login-err").textContent = "";
+    const msBtn = $("#microsoft-signin-btn");
+    msBtn.disabled = true;
+    const labelEl = msBtn.querySelector("span");
+    const prevLabel = labelEl.textContent;
+    labelEl.textContent = "Connecting to Microsoft…";
+    try {
+      const provider = new OAuthProvider("microsoft.com");
+      provider.addScope("openid");
+      provider.addScope("email");
+      provider.addScope("profile");
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      const email = (user.email || "").toLowerCase();
+      const msName = user.displayName || email.split("@")[0];
+
+      if (!email) throw new Error("Microsoft didn't return an email — try again or contact admin.");
+
+      // Look up the staff doc by email
+      const staffSnap = await getDoc(doc(db, "staff", email));
+      if (!staffSnap.exists()) {
+        // Not on allowlist — sign out and reject
+        await signOut(auth);
+        throw new Error(`${email} isn't on the staff list. Ask the admin to add you.`);
+      }
+      const staff = staffSnap.data();
+      if (staff.active === false) {
+        await signOut(auth);
+        throw new Error("Your account is inactive. Contact the admin.");
+      }
+
+      // Use the canonical display name from the staff doc (falls back to MS profile name)
+      const canonical = staff.name || msName;
+      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: canonical });
+      if (auth.currentUser) await getIdToken(auth.currentUser, true);
+
+      displayName  = canonical;
+      currentRole  = staff.role === "admin" ? "admin" : "staff";
+      localStorage.setItem(NAME_KEY, canonical);
+      localStorage.setItem(ROLE_KEY, currentRole);
+      $("#who-name").textContent = canonical;
+
+      applyRoleVisibility();
+      $("#login-overlay").style.display = "none";
+      $("#app").style.display = "";
+      startListening();
+    } catch (e) {
+      console.error(e);
+      // Friendly errors for common cases
+      const code = e.code || "";
+      let msg = e.message || "Microsoft sign-in failed.";
+      if (code === "auth/popup-closed-by-user") msg = "Sign-in window was closed.";
+      else if (code === "auth/cancelled-popup-request") msg = "Sign-in already in progress.";
+      else if (code === "auth/operation-not-allowed") msg = "Microsoft sign-in isn't enabled yet in Firebase — admin needs to enable it.";
+      $("#login-err").textContent = msg;
+    } finally {
+      msBtn.disabled = false;
+      labelEl.textContent = prevLabel;
+    }
+  }
+  $("#microsoft-signin-btn").onclick = doMicrosoftLogin;
+
   // Don't auto-skip the login screen anymore — even returning users must
   // enter the PIN on each session for a basic security step.
   // (Display name is still remembered for convenience.)
@@ -695,6 +864,7 @@
   // ---- Firestore real-time listener ----
   let unsub = null;
   let unsubJobs = null;
+  let unsubCycles = null;
   let listenerStarted = false;
   function startListening() {
     if (listenerStarted) return;
@@ -721,6 +891,71 @@
       console.error("listener error", err);
       showToast("Connection issue");
     });
+
+    // Live cycle data (admin-started task cycles with start + target dates)
+    unsubCycles = onSnapshot(doc(db, "config", "cycles"), (snap) => {
+      cycles = (snap.exists() && snap.data()) ? (snap.data() || {}) : {};
+      // Strip metadata fields (Firestore won't actually return these but defensive)
+      delete cycles.updatedAt; delete cycles.updatedBy;
+      renderAll();
+    }, (err) => { console.warn("cycles listener", err); });
+  }
+
+  // ---- Cycle helpers (admin-only) ----
+  // Cycles live in a single doc /config/cycles. Each field is a job key
+  // mapping to { startDate, targetDate, startedBy, startedAt } or removed
+  // (we delete the field when a cycle closes so the doc stays tidy).
+  function isoDate(d) {
+    // YYYY-MM-DD in local time (not UTC, so the user's chosen date stays put across timezones)
+    if (typeof d === "string") return d;
+    const dt = d instanceof Date ? d : new Date(d);
+    const y = dt.getFullYear(), m = String(dt.getMonth()+1).padStart(2,"0"), day = String(dt.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }
+  function daysBetween(aIso, bIso) {
+    // Whole days from aIso to bIso, positive means bIso is later
+    const a = new Date(aIso + "T00:00:00"), b = new Date(bIso + "T00:00:00");
+    return Math.round((b - a) / (24 * 3600 * 1000));
+  }
+  async function writeCycle(jobKey, value) {
+    // Merge-set the field. value === null deletes the field.
+    const ref = doc(db, "config", "cycles");
+    const update = { updatedAt: serverTimestamp(), updatedBy: displayName };
+    if (value === null) {
+      // Need to use deleteField — but to avoid importing it lazily, do a read-modify-write
+      const snap = await getDoc(ref);
+      const data = snap.exists() ? (snap.data() || {}) : {};
+      delete data[jobKey];
+      delete data.updatedAt; delete data.updatedBy;
+      await setDoc(ref, { ...data, ...update });
+    } else {
+      update[jobKey] = value;
+      await setDoc(ref, update, { merge: true });
+    }
+  }
+  async function startCycle(jobKey, startDate, targetDate) {
+    if (currentRole !== "admin") { showToast("Admin only"); return; }
+    const cycle = {
+      startDate: isoDate(startDate),
+      targetDate: isoDate(targetDate),
+      startedBy: displayName,
+      startedAt: serverTimestamp()
+    };
+    try {
+      await writeCycle(jobKey, cycle);
+      logActivity("cycle-start", { job: jobKey, startDate: cycle.startDate, targetDate: cycle.targetDate });
+    } catch (e) { console.error(e); showToast("Couldn't start cycle"); }
+  }
+  async function closeCycle(jobKey, reason) {
+    // reason: "completed" (auto on 100%) or "reset" (admin manual)
+    const c = cycles[jobKey];
+    if (!c) return;
+    try {
+      await writeCycle(jobKey, null);
+      const elapsed = daysBetween(c.startDate, isoDate(new Date()));
+      logActivity(reason === "completed" ? "cycle-complete" : "cycle-reset",
+        { job: jobKey, startDate: c.startDate, targetDate: c.targetDate, elapsedDays: elapsed });
+    } catch (e) { console.error(e); showToast("Couldn't close cycle"); }
   }
 
   // ---- Activity log helper ----
@@ -815,6 +1050,31 @@
     for (const f of tower.floors) for (const r of f.rooms) { total++; if (isChecked(tower.id, r, jobKey)) done++; }
     return { done, total, pct: total ? Math.round(done/total*100) : 0 };
   }
+  // Property-wide stats for one job (sums every tower). Used for auto-close logic on cycles.
+  function jobStatsAcrossAll(jobKey) {
+    let done = 0, total = 0;
+    for (const t of TOWERS) for (const f of t.floors) for (const r of f.rooms) {
+      total++; if (isChecked(t.id, r, jobKey)) done++;
+    }
+    return { done, total, pct: total ? Math.round(done/total*100) : 0 };
+  }
+  // Auto-close any active cycle whose task just hit 100% property-wide.
+  // Guard: cycleClosing tracks in-flight closes so a render storm doesn't
+  // fire multiple writes for the same cycle before the snapshot returns.
+  const cycleClosing = new Set();
+  function maybeAutoCloseCycles() {
+    for (const jobKey of Object.keys(cycles)) {
+      if (cycleClosing.has(jobKey)) continue;
+      const s = jobStatsAcrossAll(jobKey);
+      if (s.total > 0 && s.pct >= 100) {
+        cycleClosing.add(jobKey);
+        closeCycle(jobKey, "completed").finally(() => {
+          // Keep in set briefly; snapshot will clear cycles[jobKey] anyway.
+          setTimeout(() => cycleClosing.delete(jobKey), 2000);
+        });
+      }
+    }
+  }
 
   // ---- Render ----
   $("#today").textContent = today();
@@ -826,20 +1086,82 @@
     if (p >= 33)  return "t-orange";
     return "t-red";
   }
+  // Smooth yellow -> green slide between 90% and 100%.
+  // Returns an rgb() string for 90 <= p < 100, or null elsewhere (caller falls back to the CSS class).
+  // Uses smoothstep easing so 91% is barely shifted, 95% is noticeably trending green, 99% is almost green.
+  function pctGradColor(p) {
+    if (p < 90 || p >= 100) return null;
+    const t = (p - 90) / 10;
+    const e = t * t * (3 - 2 * t); // smoothstep
+    // Yellow #d9b317 (217,179,23) -> Green #3aa564 (58,165,100). The dark-theme green is slightly
+    // brighter than light-theme, but the difference is small enough that this single ramp looks
+    // good in both. 100% still uses var(--green) via the .t-green CSS class so the perfect-match
+    // promise to the check-mark color holds.
+    const r = Math.round(217 + (58  - 217) * e);
+    const g = Math.round(179 + (165 - 179) * e);
+    const b = Math.round( 23 + (100 -  23) * e);
+    return `rgb(${r},${g},${b})`;
+  }
   function statCard(label, value, sub, pct, jobKey) {
     const tier = pctTier(pct);
+    const grad = pctGradColor(pct);
     const el = document.createElement("div");
     el.className = "stat" + (jobKey ? " clickable" : "");
     if (jobKey) {
       el.dataset.job = jobKey;
       el.title = `Click to see all rooms for "${label}"`;
     }
+    const valStyle = grad ? ` style="color:${grad}"` : "";
+    const barStyle = ` style="width:${pct}%${grad ? `;background:${grad}` : ""}"`;
+    // Cycle line for task cards (jobKey set). Shows "Started May 10 · Target May 20 (Xd left)"
+    // colored by urgency, OR an admin-only Start button when no cycle is active.
+    let cycleHtml = "";
+    if (jobKey) {
+      const c = cycles[jobKey];
+      if (c && c.startDate && c.targetDate) {
+        cycleHtml = renderCycleLine(c);
+      } else if (currentRole === "admin") {
+        cycleHtml = `<button class="cycle-start-btn" data-cycle-start="${jobKey}" title="Start a tracking cycle">▶ Start cycle</button>`;
+      }
+    }
     el.innerHTML = `
       <div class="label">${label}</div>
-      <div class="value ${tier}">${value}</div>
-      <div class="bar"><span class="${tier}" style="width:${pct}%"></span></div>
-      <div class="label" style="margin-top:4px;letter-spacing:0;text-transform:none;color:#999;">${sub}</div>`;
+      <div class="value ${tier}"${valStyle}>${value}</div>
+      <div class="bar"><span class="${tier}"${barStyle}></span></div>
+      <div class="label" style="margin-top:4px;letter-spacing:0;text-transform:none;color:#999;">${sub}</div>
+      ${cycleHtml}`;
     return el;
+  }
+
+  // Friendly short date like "May 10" or "Jan 3"
+  function shortDate(iso) {
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+  // Renders "Started May 10 · Target May 20 · 4d left" with urgency coloring on the trailing chip.
+  function renderCycleLine(c) {
+    const today = isoDate(new Date());
+    const total = Math.max(1, daysBetween(c.startDate, c.targetDate));
+    const elapsed = daysBetween(c.startDate, today);
+    const remaining = daysBetween(today, c.targetDate);
+    // Urgency: green if more than half the cycle remains, yellow if approaching, orange last 24h, red overdue.
+    let urgClass = "cyc-ok", urgText;
+    if (remaining < 0) {
+      urgClass = "cyc-late"; urgText = `${Math.abs(remaining)}d overdue`;
+    } else if (remaining === 0) {
+      urgClass = "cyc-due"; urgText = "due today";
+    } else if (remaining <= Math.max(1, Math.floor(total * 0.25))) {
+      urgClass = "cyc-warn"; urgText = `${remaining}d left`;
+    } else {
+      urgClass = "cyc-ok"; urgText = `${remaining}d left`;
+    }
+    return `
+      <div class="cycle-line">
+        <span class="cyc-label">Started ${shortDate(c.startDate)}</span>
+        <span class="cyc-sep">·</span>
+        <span class="cyc-label">Target ${shortDate(c.targetDate)}</span>
+        <span class="cyc-chip ${urgClass}">${urgText}</span>
+      </div>`;
   }
 
   function renderSummary() {
@@ -877,7 +1199,9 @@
       const s = floorStats(tower, f);
       const btn = document.createElement("button");
       btn.className = "tab" + (f.num === ui.floor ? " active" : "");
-      btn.innerHTML = `Floor ${f.num} <span class="pct ${pctTier(s.pct)}">${s.pct}%</span>`;
+      const fGrad = pctGradColor(s.pct);
+      const fPctStyle = fGrad ? ` style="color:${fGrad}"` : "";
+      btn.innerHTML = `Floor ${f.num} <span class="pct ${pctTier(s.pct)}"${fPctStyle}>${s.pct}%</span>`;
       btn.onclick = () => {
         ui.floor = f.num;
         localStorage.setItem(UI_KEY, JSON.stringify(ui));
@@ -954,6 +1278,8 @@
     renderFloorView();
     renderMeta();
     if (ui.detailJob) renderDetail();
+    // Only admins write cycle changes (rule-gated), so only admins should attempt auto-close.
+    if (currentRole === "admin") maybeAutoCloseCycles();
   }
 
   // ---- Detail view (click a task % to open) ----
@@ -1070,6 +1396,14 @@
         return `cleared all tasks on ${towerLabel(a.tower)} Floor ${a.floor} (${a.roomCount||"?"} rooms)`;
       case "reset":
         return `<b>reset everything</b> across both towers (${a.cleared||"?"} entries removed)`;
+      case "tasks-edit":
+        return `edited the task list (${a.count||"?"} tasks)`;
+      case "cycle-start":
+        return `started a cycle for <b>${jobLabel(a.job)}</b> — target ${a.targetDate ? shortDate(a.targetDate) : "?"}`;
+      case "cycle-complete":
+        return `<b>${jobLabel(a.job)}</b> cycle completed in ${a.elapsedDays != null ? a.elapsedDays : "?"} days`;
+      case "cycle-reset":
+        return `ended <b>${jobLabel(a.job)}</b> cycle early (${a.elapsedDays != null ? a.elapsedDays : "?"} days in)`;
       default:
         return `did "${a.action}"`;
     }
@@ -1085,9 +1419,11 @@
         </div>
         <button class="close-btn" data-activity-close title="Close">×</button>
       </div>
+      <div id="active-cycles-section"></div>
       <div id="activity-list-container"></div>
     </div>`;
     overlay.classList.add("open");
+    renderActiveCyclesSection();
 
     try {
       const snap = await getDocs(query(collection(db, "activity"), orderBy("at", "desc"), limit(200)));
@@ -1124,6 +1460,55 @@
     const overlay = $("#activity-overlay");
     overlay.classList.remove("open");
     overlay.innerHTML = "";
+  }
+  function renderActiveCyclesSection() {
+    const section = document.getElementById("active-cycles-section");
+    if (!section) return;
+    const activeKeys = Object.keys(cycles || {}).filter(k => cycles[k] && cycles[k].startDate);
+    if (activeKeys.length === 0) {
+      section.innerHTML = `
+        <div class="cycles-section">
+          <div class="cycles-header">Active cycles</div>
+          <div class="cycles-empty">No active cycles. Click ▶ Start cycle on any task above to begin tracking.</div>
+        </div>`;
+      return;
+    }
+    const today = isoDate(new Date());
+    const rows = activeKeys.map(k => {
+      const job = JOBS.find(j => j.key === k);
+      const label = job ? job.label : k;
+      const c = cycles[k];
+      const s = jobStatsAcrossAll(k);
+      const elapsed = daysBetween(c.startDate, today);
+      const remaining = daysBetween(today, c.targetDate);
+      let urgClass = "cyc-ok";
+      if (remaining < 0) urgClass = "cyc-late";
+      else if (remaining === 0) urgClass = "cyc-due";
+      else if (remaining <= 2) urgClass = "cyc-warn";
+      const remainingTxt = remaining < 0 ? `${Math.abs(remaining)}d overdue`
+                        : remaining === 0 ? "due today" : `${remaining}d left`;
+      return `
+        <div class="cycle-row">
+          <div class="cycle-row-main">
+            <div class="cycle-row-title">${label} <span class="cycle-row-pct">${s.pct}%</span></div>
+            <div class="cycle-row-sub">
+              Started ${shortDate(c.startDate)} (${elapsed}d ago) ·
+              Target ${shortDate(c.targetDate)} ·
+              by ${c.startedBy || "—"}
+              <span class="cyc-chip ${urgClass}" style="margin-left:6px">${remainingTxt}</span>
+            </div>
+          </div>
+          <div class="cycle-row-actions">
+            <button class="cycle-edit" data-cycle-edit="${k}" title="Change dates">Edit</button>
+            <button class="cycle-end"  data-cycle-end="${k}"  title="End this cycle now">End</button>
+          </div>
+        </div>`;
+    }).join("");
+    section.innerHTML = `
+      <div class="cycles-section">
+        <div class="cycles-header">Active cycles (${activeKeys.length})</div>
+        ${rows}
+      </div>`;
   }
   document.getElementById("activity-btn").onclick = openActivity;
 
@@ -1256,6 +1641,77 @@
   }
   document.getElementById("edit-tasks-btn").onclick = openEditTasks;
 
+  // ---- Cycle date-picker overlay (admin only) ----
+  function openCycleEditor(jobKey) {
+    if (currentRole !== "admin") { showToast("Admin only"); return; }
+    const job = JOBS.find(j => j.key === jobKey);
+    if (!job) return;
+    const existing = cycles[jobKey] || {};
+    const today = isoDate(new Date());
+    // Default target = 14 days out if no existing target
+    const defaultTarget = (() => {
+      const d = new Date(); d.setDate(d.getDate() + 14); return isoDate(d);
+    })();
+    const startVal  = existing.startDate  || today;
+    const targetVal = existing.targetDate || defaultTarget;
+    const isEdit = !!(existing.startDate);
+    const overlay = $("#cycle-overlay");
+    overlay.innerHTML = `
+      <div class="detail-modal cycle-modal" style="max-width:420px">
+        <div class="detail-head">
+          <div>
+            <h3>${isEdit ? "Edit" : "Start"} cycle: ${job.label}</h3>
+            <div class="detail-sub">${isEdit
+              ? "Change the start and target dates for this task's current cycle."
+              : "Set when this task cycle starts and when you want it complete."}</div>
+          </div>
+          <button class="close-btn" data-cycle-close title="Close">×</button>
+        </div>
+        <div class="form-row">
+          <label for="cycle-start">Start date</label>
+          <input id="cycle-start" type="date" value="${startVal}" />
+        </div>
+        <div class="form-row">
+          <label for="cycle-target">Target complete-by</label>
+          <input id="cycle-target" type="date" value="${targetVal}" min="${startVal}" />
+        </div>
+        <div class="cycle-footer">
+          ${isEdit ? `<button id="cycle-clear-btn" style="margin-right:auto">Clear cycle</button>` : ""}
+          <button data-cycle-close>Cancel</button>
+          <button id="cycle-save-btn" class="primary">${isEdit ? "Save" : "Start"}</button>
+        </div>
+      </div>`;
+    overlay.classList.add("open");
+    // Keep target >= start as user edits start
+    const startEl = document.getElementById("cycle-start");
+    const targetEl = document.getElementById("cycle-target");
+    startEl.addEventListener("change", () => {
+      targetEl.min = startEl.value;
+      if (targetEl.value && targetEl.value < startEl.value) targetEl.value = startEl.value;
+    });
+    document.getElementById("cycle-save-btn").onclick = async () => {
+      const sd = startEl.value, td = targetEl.value;
+      if (!sd || !td) { showToast("Pick both dates"); return; }
+      if (td < sd) { showToast("Target must be on or after start"); return; }
+      const btn = document.getElementById("cycle-save-btn");
+      btn.disabled = true; btn.textContent = "Saving…";
+      await startCycle(jobKey, sd, td);
+      closeCycleEditor();
+    };
+    if (isEdit) {
+      document.getElementById("cycle-clear-btn").onclick = async () => {
+        if (!confirm(`Clear the active cycle for "${job.label}"? You can start a new one any time.`)) return;
+        await closeCycle(jobKey, "reset");
+        closeCycleEditor();
+      };
+    }
+  }
+  function closeCycleEditor() {
+    const overlay = $("#cycle-overlay");
+    overlay.classList.remove("open");
+    overlay.innerHTML = "";
+  }
+
   async function toggleJobColumn(jobKey) {
     const tower = getTower(ui.tower);
     const floor = getFloor(tower, ui.floor);
@@ -1301,6 +1757,24 @@
       closeActivity();
       return;
     }
+    // Active cycles section: Edit / End buttons (inside admin Activity overlay)
+    const cycEdit = e.target.closest("[data-cycle-edit]");
+    if (cycEdit) {
+      e.preventDefault();
+      closeActivity();
+      openCycleEditor(cycEdit.dataset.cycleEdit);
+      return;
+    }
+    const cycEnd = e.target.closest("[data-cycle-end]");
+    if (cycEnd) {
+      e.preventDefault();
+      const jobKey = cycEnd.dataset.cycleEnd;
+      const job = JOBS.find(j => j.key === jobKey);
+      if (confirm(`End the active cycle for "${job ? job.label : jobKey}" now? You can start a new one any time.`)) {
+        closeCycle(jobKey, "reset").then(() => renderActiveCyclesSection());
+      }
+      return;
+    }
     // Edit-tasks: close button or backdrop
     if (e.target.closest("[data-edit-tasks-close]")) {
       e.preventDefault();
@@ -1310,6 +1784,36 @@
     if (e.target.id === "edit-tasks-overlay") {
       closeEditTasks();
       return;
+    }
+    // Cycle editor: close button or backdrop
+    if (e.target.closest("[data-cycle-close]")) {
+      e.preventDefault();
+      closeCycleEditor();
+      return;
+    }
+    if (e.target.id === "cycle-overlay") {
+      closeCycleEditor();
+      return;
+    }
+    // Start cycle button (admin only, on stat cards). Must come BEFORE the
+    // stat-card click handler so the button click doesn't open the detail view.
+    const startBtn = e.target.closest("[data-cycle-start]");
+    if (startBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      openCycleEditor(startBtn.dataset.cycleStart);
+      return;
+    }
+    // Cycle line on stat card: admin click opens editor; staff click falls through to detail view.
+    const cycLine = e.target.closest(".cycle-line");
+    if (cycLine && currentRole === "admin") {
+      const stat = cycLine.closest(".stat.clickable");
+      if (stat && stat.dataset.job) {
+        e.preventDefault();
+        e.stopPropagation();
+        openCycleEditor(stat.dataset.job);
+        return;
+      }
     }
     // Detail view: filter buttons
     const filterBtn = e.target.closest("[data-filter]");
