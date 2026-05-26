@@ -1138,29 +1138,45 @@
     const d = new Date(iso + "T00:00:00");
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
-  // Renders "Started May 10 · Target May 20 · 4d left" with urgency coloring on the trailing chip.
+  // Color helper for any 0-100 percentage. Uses the same scale as % done:
+  // <33 red, 33-66 orange, 66-90 yellow, 90-100 smooth gradient to green.
+  // Returns "rgb(r,g,b)" so it can be applied as both text color and (tinted) background.
+  function pctToRGB(p) {
+    if (p >= 100) return "rgb(58,165,100)";   // var(--green) base
+    if (p >= 90)  return pctGradColor(p);     // smooth yellow -> green
+    if (p >= 66)  return "rgb(217,179,23)";   // yellow
+    if (p >= 33)  return "rgb(238,138,31)";   // orange
+    return            "rgb(217,69,69)";       // red
+  }
+  // Renders "Started May 10 · Target May 20 · 4d left" with the trailing chip
+  // colored on the SAME scale as % done, but measuring time-left instead of work-done.
+  // Day 1 of a cycle = 100% time left = green, half-way = orange-yellow, target day = red.
+  // Past target = constant deep red ("overdue") regardless of how far past.
   function renderCycleLine(c) {
     const today = isoDate(new Date());
     const total = Math.max(1, daysBetween(c.startDate, c.targetDate));
-    const elapsed = daysBetween(c.startDate, today);
     const remaining = daysBetween(today, c.targetDate);
-    // Urgency: green if more than half the cycle remains, yellow if approaching, orange last 24h, red overdue.
-    let urgClass = "cyc-ok", urgText;
+    let urgText, chipStyle;
     if (remaining < 0) {
-      urgClass = "cyc-late"; urgText = `${Math.abs(remaining)}d overdue`;
-    } else if (remaining === 0) {
-      urgClass = "cyc-due"; urgText = "due today";
-    } else if (remaining <= Math.max(1, Math.floor(total * 0.25))) {
-      urgClass = "cyc-warn"; urgText = `${remaining}d left`;
+      // Overdue: pinned to deep red (the % done red).
+      const overdueColor = "rgb(217,69,69)";
+      chipStyle = `color:${overdueColor};background:rgba(217,69,69,0.22)`;
+      urgText = `${Math.abs(remaining)}d overdue`;
     } else {
-      urgClass = "cyc-ok"; urgText = `${remaining}d left`;
+      // In-progress: percent of cycle time remaining drives the color.
+      // Clamp to 100 so a same-day cycle still shows green on day 0.
+      let pctLeft = Math.min(100, Math.round((remaining / total) * 100));
+      const color = pctToRGB(pctLeft);
+      const bgRgba = color.replace("rgb(", "rgba(").replace(")", ",0.20)");
+      chipStyle = `color:${color};background:${bgRgba}`;
+      urgText = remaining === 0 ? "due today" : `${remaining}d left`;
     }
     return `
       <div class="cycle-line">
         <span class="cyc-label">Started ${shortDate(c.startDate)}</span>
         <span class="cyc-sep">·</span>
         <span class="cyc-label">Target ${shortDate(c.targetDate)}</span>
-        <span class="cyc-chip ${urgClass}">${urgText}</span>
+        <span class="cyc-chip" style="${chipStyle}">${urgText}</span>
       </div>`;
   }
 
@@ -1479,14 +1495,21 @@
       const label = job ? job.label : k;
       const c = cycles[k];
       const s = jobStatsAcrossAll(k);
+      const total = Math.max(1, daysBetween(c.startDate, c.targetDate));
       const elapsed = daysBetween(c.startDate, today);
       const remaining = daysBetween(today, c.targetDate);
-      let urgClass = "cyc-ok";
-      if (remaining < 0) urgClass = "cyc-late";
-      else if (remaining === 0) urgClass = "cyc-due";
-      else if (remaining <= 2) urgClass = "cyc-warn";
-      const remainingTxt = remaining < 0 ? `${Math.abs(remaining)}d overdue`
-                        : remaining === 0 ? "due today" : `${remaining}d left`;
+      // Same time-left coloring as the stat-card cycle chip
+      let chipStyle, remainingTxt;
+      if (remaining < 0) {
+        chipStyle = "color:rgb(217,69,69);background:rgba(217,69,69,0.22)";
+        remainingTxt = `${Math.abs(remaining)}d overdue`;
+      } else {
+        const pctLeft = Math.min(100, Math.round((remaining / total) * 100));
+        const color = pctToRGB(pctLeft);
+        const bgRgba = color.replace("rgb(", "rgba(").replace(")", ",0.20)");
+        chipStyle = `color:${color};background:${bgRgba}`;
+        remainingTxt = remaining === 0 ? "due today" : `${remaining}d left`;
+      }
       return `
         <div class="cycle-row">
           <div class="cycle-row-main">
@@ -1495,7 +1518,7 @@
               Started ${shortDate(c.startDate)} (${elapsed}d ago) ·
               Target ${shortDate(c.targetDate)} ·
               by ${c.startedBy || "—"}
-              <span class="cyc-chip ${urgClass}" style="margin-left:6px">${remainingTxt}</span>
+              <span class="cyc-chip" style="margin-left:6px;${chipStyle}">${remainingTxt}</span>
             </div>
           </div>
           <div class="cycle-row-actions">

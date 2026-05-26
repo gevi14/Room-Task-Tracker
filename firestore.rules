@@ -2,11 +2,74 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Only signed-in users (including anonymous) can read or write
-    // the room-completion records. Adjust if you want stricter rules
-    // (e.g. require email auth, or restrict by display name).
+    // ---- helpers ----
+    // Hybrid sign-in: two paths into the app, both gated by /staff allowlist.
+    //   1. PIN + name (anonymous auth, displayName set by app)  -> staff doc keyed by lower(name)
+    //   2. Sign in with Microsoft (OAuth via Azure AD)          -> staff doc keyed by lower(email)
+    function loweredName() {
+      return (request.auth != null && request.auth.token.name != null)
+        ? request.auth.token.name.lower() : "";
+    }
+    function loweredEmail() {
+      return (request.auth != null && request.auth.token.email != null)
+        ? request.auth.token.email.lower() : "";
+    }
+    function hasActiveStaffByEmail() {
+      return loweredEmail() != ""
+        && exists(/databases/$(database)/documents/staff/$(loweredEmail()))
+        && get(/databases/$(database)/documents/staff/$(loweredEmail())).data.active == true;
+    }
+    function hasActiveStaffByName() {
+      return loweredName() != ""
+        && exists(/databases/$(database)/documents/staff/$(loweredName()))
+        && get(/databases/$(database)/documents/staff/$(loweredName())).data.active == true;
+    }
+    function isStaff() {
+      return request.auth != null && (hasActiveStaffByEmail() || hasActiveStaffByName());
+    }
+    function isAdmin() {
+      return request.auth != null && (
+        (hasActiveStaffByEmail()
+          && get(/databases/$(database)/documents/staff/$(loweredEmail())).data.role == "admin")
+        ||
+        (hasActiveStaffByName()
+          && get(/databases/$(database)/documents/staff/$(loweredName())).data.role == "admin")
+      );
+    }
+
+    // ---- staff allowlist ----
+    // Anyone signed in (anonymously) can read the staff list — needed during
+    // login to verify their name. Only admins can edit it.
+    match /staff/{id} {
+      allow read:  if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ---- property config ----
+    // Holds:
+    //   /config/property — PIN hash + salt
+    //   /config/jobs     — editable task list (admin-managed)
+    //   /config/cycles   — active task cycles (start + target dates per task)
+    // Readable by any signed-in user (needed during login & to show cycle info to staff).
+    // Writable only by admins.
+    match /config/{id} {
+      allow read:  if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ---- room completions ----
+    // Only active staff members can read or write completions.
     match /completions/{docId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isStaff();
+    }
+
+    // ---- activity log (audit trail) ----
+    // Any staff can append a log entry; only admins can read the log.
+    // No one can update or delete entries (immutable audit trail; rely on TTL).
+    match /activity/{docId} {
+      allow create: if isStaff();
+      allow read:   if isAdmin();
+      allow update, delete: if false;
     }
   }
 }
