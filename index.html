@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Room Tracker build: 2026-05-26-cycle-timer-v2 (cycle timer + smooth 90-100 gradient + time-left % coloring) -->
+<!-- Room Tracker build: 2026-05-26-hotel-and-cycle-v3 (Hotel overview + per-column floor % + cycle timer + 90-100 gradient) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Room Tracker</title>
-<meta name="rt-build" content="2026-05-26-cycle-timer-v2">
+<meta name="rt-build" content="2026-05-26-hotel-and-cycle-v3">
 
 <!-- iOS PWA hints -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -247,6 +247,22 @@
   }
   th:first-child, td:first-child { text-align: left; padding-left: 14px; }
   tr:last-child td { border-bottom: none; }
+  /* Per-column floor percentage in table header */
+  th .task-name { font-size: 13px; line-height: 1.15; }
+  th .task-pct  { font-size: 12px; font-weight: 600; margin-top: 3px; letter-spacing: 0; }
+  th .task-pct.t-red    { color: #d94545; }
+  th .task-pct.t-orange { color: #ee8a1f; }
+  th .task-pct.t-yellow { color: #d9b317; }
+  th .task-pct.t-green  { color: var(--green); }
+  th .task-frac { font-size: 10px; color: var(--fg-muted); font-weight: 400; margin-top: 1px; letter-spacing: 0; }
+
+  /* East / West breakdown row inside stat cards (Hotel mode) */
+  .stat .stat-breakdown {
+    display: flex; justify-content: space-between; gap: 6px;
+    font-size: 11px; color: var(--fg-muted); margin-top: 6px;
+  }
+  .stat .stat-breakdown b { color: var(--fg); font-weight: 600; }
+
   th .col-toggle {
     display: block; margin: 4px auto 0;
     font-size: 10px; padding: 3px 9px;
@@ -1060,6 +1076,22 @@
     }
     return { done, total, pct: total ? Math.round(done/total*100) : 0 };
   }
+  // Property-wide stats across all jobs (all towers × all rooms × all tasks).
+  function propertyStats() {
+    let done = 0, total = 0;
+    for (const t of TOWERS) for (const f of t.floors) for (const r of f.rooms) for (const j of JOBS) {
+      total++; if (isChecked(t.id, r, j.key)) done++;
+    }
+    return { done, total, pct: total ? Math.round(done/total*100) : 0 };
+  }
+  // True when the user has the "Hotel" overview selected (no tower picked).
+  function isHotelMode() { return ui.tower === "hotel"; }
+  // Floor view per-column percentage (one task on one floor of one tower).
+  function jobStatsOnFloor(tower, floor, jobKey) {
+    let done = 0;
+    for (const r of floor.rooms) if (isChecked(tower.id, r, jobKey)) done++;
+    return { done, total: floor.rooms.length, pct: floor.rooms.length ? Math.round(done/floor.rooms.length*100) : 0 };
+  }
   // Auto-close any active cycle whose task just hit 100% property-wide.
   // Guard: cycleClosing tracks in-flight closes so a render storm doesn't
   // fire multiple writes for the same cycle before the snapshot returns.
@@ -1104,7 +1136,7 @@
     const b = Math.round( 23 + (100 -  23) * e);
     return `rgb(${r},${g},${b})`;
   }
-  function statCard(label, value, sub, pct, jobKey) {
+  function statCard(label, value, sub, pct, jobKey, breakdownHtml) {
     const tier = pctTier(pct);
     const grad = pctGradColor(pct);
     const el = document.createElement("div");
@@ -1131,8 +1163,19 @@
       <div class="value ${tier}"${valStyle}>${value}</div>
       <div class="bar"><span class="${tier}"${barStyle}></span></div>
       <div class="label" style="margin-top:4px;letter-spacing:0;text-transform:none;color:#999;">${sub}</div>
+      ${breakdownHtml || ""}
       ${cycleHtml}`;
     return el;
+  }
+  // Builds the inline "East 78% · West 86%" breakdown row used in Hotel mode.
+  function buildBreakdown(jobKey) {
+    const parts = TOWERS.map(t => {
+      const s = jobKey ? jobStatsInTower(t, jobKey) : towerStats(t);
+      // Short tower label: "East" / "West" (drop the " Tower" suffix to save space)
+      const short = t.name.replace(/\s*Tower\s*$/i, "");
+      return `<span>${short} <b>${s.pct}%</b></span>`;
+    });
+    return `<div class="stat-breakdown">${parts.join("")}</div>`;
   }
 
   // Friendly short date like "May 10" or "Jan 3"
@@ -1184,6 +1227,16 @@
 
   function renderSummary() {
     const el = $("#summary"); el.innerHTML = "";
+    if (isHotelMode()) {
+      // Property-wide cards. Each card carries an East/West breakdown row.
+      const t = propertyStats();
+      el.appendChild(statCard("Hotel", `${t.pct}%`, `${t.done}/${t.total} tasks`, t.pct, null, buildBreakdown(null)));
+      for (const j of JOBS) {
+        const s = jobStatsAcrossAll(j.key);
+        el.appendChild(statCard(j.label, `${s.pct}%`, `${s.done}/${s.total} rooms`, s.pct, j.key, buildBreakdown(j.key)));
+      }
+      return;
+    }
     const tower = getTower(ui.tower);
     const t = towerStats(tower);
     el.appendChild(statCard(`${tower.name}`, `${t.pct}%`, `${t.done}/${t.total} tasks`, t.pct));
@@ -1195,13 +1248,25 @@
 
   function renderTowerBar() {
     const el = $("#tower-bar"); el.innerHTML = "";
+    // "Hotel" overview button first
+    const hotelBtn = document.createElement("button");
+    hotelBtn.className = "tower-btn" + (isHotelMode() ? " active" : "");
+    const hs = propertyStats();
+    hotelBtn.innerHTML = `Hotel <span style="opacity:0.6;font-weight:400;">· ${hs.pct}%</span>`;
+    hotelBtn.onclick = () => {
+      ui.tower = "hotel";
+      localStorage.setItem(UI_KEY, JSON.stringify(ui));
+      renderAll();
+    };
+    el.appendChild(hotelBtn);
     for (const t of TOWERS) {
       const b = document.createElement("button");
       b.className = "tower-btn" + (t.id === ui.tower ? " active" : "");
       const s = towerStats(t);
       b.innerHTML = `${t.name} <span style="opacity:0.6;font-weight:400;">· ${s.pct}%</span>`;
       b.onclick = () => {
-        ui.tower = t.id; ui.floor = t.floors[0].num;
+        ui.tower = t.id;
+        if (!t.floors.find(f => f.num === ui.floor)) ui.floor = t.floors[0].num;
         localStorage.setItem(UI_KEY, JSON.stringify(ui));
         renderAll();
       };
@@ -1211,6 +1276,8 @@
 
   function renderTabs() {
     const el = $("#tabs"); el.innerHTML = "";
+    // No floor tabs in Hotel mode — the summary cards ARE the view.
+    if (isHotelMode()) return;
     const tower = getTower(ui.tower);
     if (!tower.floors.find(f => f.num === ui.floor)) ui.floor = tower.floors[0].num;
     for (const f of tower.floors) {
@@ -1231,6 +1298,8 @@
 
   function renderFloorView() {
     const el = $("#floor-view"); el.innerHTML = "";
+    // Hotel mode: no per-floor checklist to show.
+    if (isHotelMode()) return;
     const tower = getTower(ui.tower);
     const floor = getFloor(tower, ui.floor);
 
@@ -1250,7 +1319,19 @@
     const thead = document.createElement("thead");
     thead.innerHTML = `<tr><th>Room</th>${JOBS.map(j => {
       const allDone = floor.rooms.every(r => isChecked(tower.id, r, j.key));
-      return `<th>${j.label}<button class="col-toggle${allDone ? " all-done" : ""}" data-job="${j.key}">${allDone ? "Clear all" : "Select all"}</button></th>`;
+      // Per-column floor percentage. Same color scale as the summary cards (with the smooth 90-100 slide).
+      const s = jobStatsOnFloor(tower, floor, j.key);
+      const grad = pctGradColor(s.pct);
+      const tier = pctTier(s.pct);
+      const pctStyle = grad ? ` style="color:${grad}"` : "";
+      // Drop the fraction at 100% (it's redundant — "100%" already says it all)
+      const fracHtml = s.pct >= 100 ? "" : `<div class="task-frac">${s.done}/${s.total}</div>`;
+      return `<th>
+        <div class="task-name">${j.label}</div>
+        <div class="task-pct ${tier}"${pctStyle}>${s.pct}%</div>
+        ${fracHtml}
+        <button class="col-toggle${allDone ? " all-done" : ""}" data-job="${j.key}">${allDone ? "Clear all" : "Select all"}</button>
+      </th>`;
     }).join("")}</tr>`;
     table.appendChild(thead);
 
