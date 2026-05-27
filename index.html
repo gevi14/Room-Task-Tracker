@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Room Tracker build: 2026-05-26-hotel-and-cycle-v3 (Hotel overview + per-column floor % + cycle timer + 90-100 gradient) -->
+<!-- Room Tracker build: 2026-05-26-pbr-home-v4 (PBR hero home + home icon + per-column floor % + cycle timer + 90-100 gradient) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Room Tracker</title>
-<meta name="rt-build" content="2026-05-26-hotel-and-cycle-v3">
+<meta name="rt-build" content="2026-05-26-pbr-home-v4">
 
 <!-- iOS PWA hints -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -262,6 +262,72 @@
     font-size: 11px; color: var(--fg-muted); margin-top: 6px;
   }
   .stat .stat-breakdown b { color: var(--fg); font-weight: 600; }
+
+  /* ========== PBR (property) home mode ========== */
+  /* In PBR mode the summary container is transparent so the hero + grid
+     show as distinct blocks on the page. */
+  .summary.pbr-mode {
+    background: transparent; border: none; padding: 0;
+    display: block; margin-bottom: 0;
+  }
+  .pbr-hero {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 22px 24px; text-align: center;
+    margin-bottom: 12px;
+  }
+  .pbr-hero .h-label {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--fg-dim); font-weight: 600;
+  }
+  .pbr-hero .h-name { font-size: 30px; font-weight: 700; line-height: 1; margin-top: 2px; }
+  .pbr-hero .h-pct  { font-size: 60px; font-weight: 700; line-height: 1; margin-top: 10px; letter-spacing: -0.01em; transition: color 0.25s; }
+  .pbr-hero .h-pct.t-red    { color: #d94545; }
+  .pbr-hero .h-pct.t-orange { color: #ee8a1f; }
+  .pbr-hero .h-pct.t-yellow { color: #d9b317; }
+  .pbr-hero .h-pct.t-green  { color: var(--green); }
+  .pbr-hero .h-bar {
+    height: 14px; background: var(--bar-bg); border-radius: 7px;
+    margin: 14px auto; max-width: 360px; overflow: hidden;
+  }
+  .pbr-hero .h-bar > span { display: block; height: 100%; border-radius: 7px; transition: width 0.25s, background-color 0.25s; }
+  .pbr-hero .h-bar > span.t-red    { background: #d94545; }
+  .pbr-hero .h-bar > span.t-orange { background: #ee8a1f; }
+  .pbr-hero .h-bar > span.t-yellow { background: #d9b317; }
+  .pbr-hero .h-bar > span.t-green  { background: var(--green); }
+  .pbr-hero .h-sub { font-size: 14px; color: var(--fg-muted); }
+  .pbr-hero .h-split {
+    display: flex; justify-content: center; gap: 32px;
+    font-size: 15px; color: var(--fg-muted); margin-top: 10px;
+  }
+  .pbr-hero .h-split b { color: var(--fg); font-weight: 700; font-size: 18px; }
+
+  /* 2-column grid of bigger task cards below the hero */
+  .pbr-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  }
+  .pbr-grid .stat {
+    background: var(--card-bg); border: 1px solid var(--card-border);
+    border-radius: 14px; padding: 16px 18px;
+  }
+  .pbr-grid .stat .label { font-size: 12px; }
+  .pbr-grid .stat .value { font-size: 34px; line-height: 1.05; margin-top: 4px; }
+  .pbr-grid .stat .bar { height: 12px; margin-top: 10px; border-radius: 6px; }
+  .pbr-grid .stat .bar > span { border-radius: 6px; }
+  .pbr-grid .stat > .label[style] { font-size: 12px !important; margin-top: 8px !important; }
+  .pbr-grid .stat .stat-breakdown {
+    font-size: 15px; margin-top: 10px;
+    padding-top: 8px; border-top: 1px solid var(--card-border);
+  }
+  .pbr-grid .stat .stat-breakdown b { font-size: 17px; }
+  .pbr-grid .stat .cycle-line { font-size: 12px; margin-top: 8px; }
+  .pbr-grid .stat .cycle-start-btn { font-size: 12px; margin-top: 8px; padding: 4px 11px; }
+
+  @media (max-width: 480px) {
+    .pbr-hero .h-pct { font-size: 48px; }
+    .pbr-grid .stat .value { font-size: 28px; }
+    .pbr-grid .stat .stat-breakdown { font-size: 13px; }
+    .pbr-grid .stat .stat-breakdown b { font-size: 15px; }
+  }
 
   th .col-toggle {
     display: block; margin: 4px auto 0;
@@ -538,6 +604,9 @@
     </div>
     <div class="actions">
       <span class="who" id="who"><span class="dot"></span><span id="who-name">Loading…</span></span>
+      <button id="home-btn" class="icon-btn" title="Go to PBR home (property overview)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 9v11h14V9"/><path d="M10 20v-6h4v6"/></svg>
+      </button>
       <button id="theme-toggle" class="icon-btn" title="Toggle dark/light theme">
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -663,12 +732,20 @@
   }
   const themeBtn = document.getElementById("theme-toggle");
   if (themeBtn) themeBtn.onclick = toggleTheme;
+  // Home button — jump back to PBR property-wide overview from anywhere.
+  const homeBtn = document.getElementById("home-btn");
+  if (homeBtn) homeBtn.onclick = () => {
+    ui.tower = "hotel";
+    try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch {}
+    renderAll();
+  };
 
   // ---- Local state ----
   const UI_KEY = "room-tracker.ui.v1";
   const NAME_KEY = "room-tracker.name.v1";
   const ROLE_KEY = "room-tracker.role.v1";
-  let ui = { tower: "east", floor: 2 };
+  // Default landing view: PBR (property-wide overview). Returning users keep their last tower from localStorage.
+  let ui = { tower: "hotel", floor: 2 };
   try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || "{}")); } catch {}
   let completions = {}; // docId -> { tower, room, job, doneBy, doneAt }
   let cycles = {};      // jobKey -> { startDate: "YYYY-MM-DD", targetDate: "YYYY-MM-DD", startedBy, startedAt }
@@ -1228,15 +1305,40 @@
   function renderSummary() {
     const el = $("#summary"); el.innerHTML = "";
     if (isHotelMode()) {
-      // Property-wide cards. Each card carries an East/West breakdown row.
+      // ----- PBR home: centered hero header + 2-column big task cards -----
+      el.classList.add("pbr-mode");
       const t = propertyStats();
-      el.appendChild(statCard("Hotel", `${t.pct}%`, `${t.done}/${t.total} tasks`, t.pct, null, buildBreakdown(null)));
+      const tier = pctTier(t.pct);
+      const grad = pctGradColor(t.pct);
+      const pctStyle = grad ? ` style="color:${grad}"` : "";
+      const barStyle = ` style="width:${t.pct}%${grad ? `;background:${grad}` : ""}"`;
+      const towerSplits = TOWERS.map(tw => {
+        const s = towerStats(tw);
+        const short = tw.name.replace(/\s*Tower\s*$/i, "");
+        return `<span>${short} <b>${s.pct}%</b></span>`;
+      }).join("");
+      const hero = document.createElement("div");
+      hero.className = "pbr-hero";
+      hero.innerHTML = `
+        <div class="h-label">Property overview</div>
+        <div class="h-name">PBR</div>
+        <div class="h-pct ${tier}"${pctStyle}>${t.pct}%</div>
+        <div class="h-bar"><span class="${tier}"${barStyle}></span></div>
+        <div class="h-sub">${t.done} / ${t.total} tasks complete</div>
+        <div class="h-split">${towerSplits}</div>`;
+      el.appendChild(hero);
+
+      const grid = document.createElement("div");
+      grid.className = "pbr-grid";
       for (const j of JOBS) {
         const s = jobStatsAcrossAll(j.key);
-        el.appendChild(statCard(j.label, `${s.pct}%`, `${s.done}/${s.total} rooms`, s.pct, j.key, buildBreakdown(j.key)));
+        grid.appendChild(statCard(j.label, `${s.pct}%`, `${s.done}/${s.total} rooms`, s.pct, j.key, buildBreakdown(j.key)));
       }
+      el.appendChild(grid);
       return;
     }
+    // ----- Per-tower view (East / West) -----
+    el.classList.remove("pbr-mode");
     const tower = getTower(ui.tower);
     const t = towerStats(tower);
     el.appendChild(statCard(`${tower.name}`, `${t.pct}%`, `${t.done}/${t.total} tasks`, t.pct));
@@ -1248,11 +1350,11 @@
 
   function renderTowerBar() {
     const el = $("#tower-bar"); el.innerHTML = "";
-    // "Hotel" overview button first
+    // "PBR" (property) overview button first
     const hotelBtn = document.createElement("button");
     hotelBtn.className = "tower-btn" + (isHotelMode() ? " active" : "");
     const hs = propertyStats();
-    hotelBtn.innerHTML = `Hotel <span style="opacity:0.6;font-weight:400;">· ${hs.pct}%</span>`;
+    hotelBtn.innerHTML = `PBR <span style="opacity:0.6;font-weight:400;">· ${hs.pct}%</span>`;
     hotelBtn.onclick = () => {
       ui.tower = "hotel";
       localStorage.setItem(UI_KEY, JSON.stringify(ui));
