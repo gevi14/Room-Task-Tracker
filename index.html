@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Room Tracker build: 2026-05-28-mobile-lean-v4-2 (drop per-task cards on mobile + min-height task names + tappable column headers) -->
+<!-- Room Tracker build: 2026-06-03-flat-hero-v4-3 (flat PBR hero on desktop too — matches mobile) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Room Tracker</title>
-<meta name="rt-build" content="2026-05-28-mobile-lean-v4-2">
+<meta name="rt-build" content="2026-06-03-flat-hero-v4-3">
 
 <!-- iOS PWA hints -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -277,9 +277,11 @@
     background: transparent; border: none; padding: 0;
     display: block; margin-bottom: 0;
   }
+  /* Flat hero (no card bg / border) — same on desktop and mobile so it reads
+     as a page heading rather than a tappable surface. */
   .pbr-hero {
-    background: var(--card-bg); border: 1px solid var(--card-border);
-    border-radius: 14px; padding: 22px 24px; text-align: center;
+    background: transparent; border: none;
+    padding: 18px 0 14px; text-align: center;
     margin-bottom: 12px;
   }
   .pbr-hero .h-label {
@@ -330,10 +332,10 @@
   .pbr-grid .stat .cycle-start-btn { font-size: 12px; margin-top: 8px; padding: 4px 11px; }
 
   @media (max-width: 480px) {
-    /* Flatten the PBR hero on phones — it was reading as a tappable card.
-       Drop the bg + border, tighten padding, lighten the divider via no border. */
+    /* PBR hero is already flat at all sizes (see base style above); just tighten
+       padding a touch on phones. */
     .pbr-hero {
-      background: transparent; border: none; padding: 8px 0 14px;
+      padding: 8px 0 14px;
       margin-bottom: 8px;
     }
     .pbr-hero .h-pct { font-size: 48px; }
