@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Room Tracker build: 2026-06-03-flat-hero-v4-3 (flat PBR hero on desktop too — matches mobile) -->
+<!-- Room Tracker build: 2026-06-03-safer-actions-v4-4 (Are-you-sure on Reset all + Mark floor + Clear floor; flat hero) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Room Tracker</title>
-<meta name="rt-build" content="2026-06-03-flat-hero-v4-3">
+<meta name="rt-build" content="2026-06-03-safer-actions-v4-4">
 
 <!-- iOS PWA hints -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1132,7 +1132,7 @@
 
   async function resetAll() {
     if (currentRole !== "admin") { showToast("Only admins can reset"); return; }
-    if (!confirm("Clear ALL checkboxes across both towers? This affects everyone using this app.")) return;
+    if (!confirm("Are you sure?\n\nThis clears ALL checkboxes across both towers and affects everyone using this app. There is no undo.")) return;
     try {
       const snap = await getDocs(collection(db, "completions"));
       const beforeCount = snap.size;
@@ -1490,8 +1490,14 @@
     table.appendChild(tbody);
     el.appendChild(table);
 
-    head.querySelector('[data-act="all"]').onclick = () => markFloor(tower, floor, true);
-    head.querySelector('[data-act="clear"]').onclick = () => markFloor(tower, floor, false);
+    head.querySelector('[data-act="all"]').onclick = () => {
+      const msg = `Are you sure?\n\nThis marks every task on ${tower.name} Floor ${floor.num} done (${floor.rooms.length} rooms × ${JOBS.length} tasks).`;
+      if (confirm(msg)) markFloor(tower, floor, true);
+    };
+    head.querySelector('[data-act="clear"]').onclick = () => {
+      const msg = `Are you sure?\n\nThis clears every task on ${tower.name} Floor ${floor.num} (${floor.rooms.length} rooms × ${JOBS.length} tasks). There is no undo.`;
+      if (confirm(msg)) markFloor(tower, floor, false);
+    };
   }
 
   function renderMeta() {
