@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Room Tracker build: 2026-09-08-dunhill-hold-v4-6 (adds press-and-hold Dunhill D to housekeeping) -->
+<!-- Room Tracker build: 2026-09-08-amber-d-counter-v4-7-1 (D check + counter now amber, not purple) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Room Tracker</title>
-<meta name="rt-build" content="2026-09-08-dunhill-hold-v4-6">
+<meta name="rt-build" content="2026-09-08-amber-d-counter-v4-7-1">
 
 <!-- iOS PWA hints -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -380,12 +380,20 @@
     border: solid #fff; border-width: 0 2.5px 2.5px 0;
     transform: rotate(45deg) translate(-1px, -1px);
   }
-  /* Dunhill's checks render a bold "D" instead of ✓. */
+  /* Dunhill's checks render a bold "D" inside an amber box — clearly distinct
+     from the green team check so admin can spot billable rooms at a glance. */
+  label.cb.checked.by-dunhill {
+    background: #d97706;
+    border-color: #d97706;
+  }
   label.cb.checked.by-dunhill::after {
     content: "D";
     width: auto; height: auto;
     border: none; transform: none;
     color: #fff; font-weight: 700; font-size: 16px; line-height: 1;
+  }
+  html[data-theme="dark"] label.cb.checked.by-dunhill {
+    background: #f59e0b; border-color: #f59e0b;
   }
   /* Suppress iOS's row highlight + text-select on long-press so the D gesture
      feels intentional. Applied to label + surrounding row/cell because iOS
@@ -413,6 +421,18 @@
     background: #fff4c2; border-color: #d9b317; color: #6b520a;
   }
   .assign-btn.assign-on:hover { background: #ffe98a; }
+  /* Dunhill counter pill — matches the amber D check so the visual link is
+     obvious. Only rendered for Gevi (see gevi-only visibility logic in JS). */
+  .dunhill-counter {
+    display: inline-flex; align-items: center;
+    font-size: 12px; font-weight: 600;
+    padding: 5px 11px; border-radius: 999px;
+    background: rgba(217, 119, 6, 0.15); color: #b26100;
+    border: 1px solid rgba(217, 119, 6, 0.45);
+  }
+  html[data-theme="dark"] .dunhill-counter {
+    background: rgba(245, 158, 11, 0.22); color: #fcd34d; border-color: rgba(245, 158, 11, 0.55);
+  }
   label.cb .by {
     position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%);
     font-size: 9px; color: var(--green); white-space: nowrap; pointer-events: none;
@@ -666,6 +686,7 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
+      <span id="dunhill-counter" class="dunhill-counter" style="display:none" title="Rooms Dunhill has been credited for (long-press or right-click checks)">Dunhill: 0</span>
       <button id="assign-btn" class="assign-btn admin-only" style="display:none" title="When ON, tapping a cell marks it yellow (assigned to be done) instead of checking it done">Assign mode</button>
       <button id="edit-tasks-btn" class="admin-only" style="display:none" title="Rename, add, or remove tasks">Edit tasks</button>
       <button id="activity-btn" class="admin-only" style="display:none" title="View activity log">Activity</button>
@@ -818,6 +839,24 @@
   const DUNHILL_NAME = "Dunhill";
   function isDunhill(name) {
     return typeof name === "string" && name.trim().toLowerCase() === DUNHILL_NAME.toLowerCase();
+  }
+  // Gate the Dunhill counter to Gevi only — he's the one who pays Dunhill.
+  // Match either spelling of his signed-in name.
+  const GEVI_NAMES = ["gevi", "geverson"];
+  function isGevi() {
+    return typeof displayName === "string" && GEVI_NAMES.includes(displayName.trim().toLowerCase());
+  }
+  function countDunhillRooms() {
+    let n = 0;
+    for (const id in completions) if (isDunhill(completions[id].doneBy)) n++;
+    return n;
+  }
+  function updateDunhillCounter() {
+    const el = document.getElementById("dunhill-counter");
+    if (!el) return;
+    if (!isGevi()) { el.style.display = "none"; return; }
+    el.style.display = "";
+    el.textContent = "Dunhill: " + countDunhillRooms();
   }
 
   // "Assign mode" — when ON, tapping a cell toggles a yellow "planned" state
@@ -1641,6 +1680,7 @@
     renderTabs();
     renderFloorView();
     renderMeta();
+    updateDunhillCounter();
     // Hide the home icon when we're already on the PBR home — no point in a no-op button.
     const homeBtnEl = document.getElementById("home-btn");
     if (homeBtnEl) homeBtnEl.style.display = isHotelMode() ? "none" : "";
