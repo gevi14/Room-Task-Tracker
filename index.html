@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Room Tracker build: 2026-09-08-amber-d-counter-v4-7-1 (D check + counter now amber, not purple) -->
+<!-- Room Tracker build: 2026-09-08-print-snip-v4-8 (Print button → clean print/snip preview of current floor or PBR overview) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Room Tracker</title>
-<meta name="rt-build" content="2026-09-08-amber-d-counter-v4-7-1">
+<meta name="rt-build" content="2026-09-08-print-snip-v4-8">
 
 <!-- iOS PWA hints -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -421,6 +421,55 @@
     background: #fff4c2; border-color: #d9b317; color: #6b520a;
   }
   .assign-btn.assign-on:hover { background: #ffe98a; }
+  /* Print / snip overlay — screen styles first, then a @media print block. */
+  .print-modal {
+    background: #fff; color: #111;
+    width: 100%; max-width: 900px; margin: 0 auto;
+    padding: 24px 28px; border-radius: 10px;
+    max-height: 90vh; overflow: auto;
+  }
+  .print-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    border-bottom: 2px solid #111; padding-bottom: 10px; margin-bottom: 16px;
+  }
+  .print-head h2 { margin: 0; font-size: 20px; color: #111; }
+  .print-head .p-sub { font-size: 12px; color: #555; margin-top: 4px; }
+  .print-head .p-actions { display: flex; gap: 6px; }
+  .print-head .p-actions button {
+    padding: 6px 12px; font-size: 12px; font-weight: 600;
+    border: 1px solid #999; background: #f5f5f5; color: #111; border-radius: 6px;
+    cursor: pointer;
+  }
+  .print-head .p-actions button.primary { background: #111; color: #fff; border-color: #111; }
+  table.print-table {
+    width: 100%; border-collapse: collapse; font-size: 12px; color: #111;
+  }
+  table.print-table th, table.print-table td {
+    border: 1px solid #999; padding: 5px 6px; text-align: center;
+    background: #fff !important; color: #111 !important;
+  }
+  table.print-table th { background: #f0f0f0 !important; font-weight: 700; }
+  table.print-table td:first-child, table.print-table th:first-child { text-align: left; font-weight: 600; }
+  .print-cb { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 1.5px solid #666; border-radius: 3px; font-weight: 700; font-size: 11px; color: #fff; line-height: 1; }
+  .print-cb.on         { background: #2a8a4a; border-color: #2a8a4a; }
+  .print-cb.on.dunhill { background: #d97706; border-color: #d97706; }
+  .print-cb.assigned   { background: #fff4c2; border-color: #d97706; color: #6b520a; }
+  .print-legend { margin-top: 14px; font-size: 11px; color: #555; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .print-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+  .print-footer { margin-top: 14px; font-size: 10px; color: #999; text-align: center; }
+
+  @media print {
+    body * { visibility: hidden !important; }
+    #print-overlay, #print-overlay * { visibility: visible !important; }
+    #print-overlay {
+      position: absolute !important; inset: 0 !important;
+      background: #fff !important; padding: 0 !important;
+      display: block !important;
+    }
+    .print-modal { max-height: none !important; box-shadow: none !important; padding: 12px !important; }
+    .print-head .p-actions { display: none !important; }
+  }
+
   /* Dunhill counter pill — matches the amber D check so the visual link is
      obvious. Only rendered for Gevi (see gevi-only visibility logic in JS). */
   .dunhill-counter {
@@ -682,6 +731,9 @@
       <button id="home-btn" class="icon-btn" title="Go to PBR home (property overview)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 9v11h14V9"/><path d="M10 20v-6h4v6"/></svg>
       </button>
+      <button id="print-btn" class="icon-btn" title="Print or save the current floor as PDF / snip">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+      </button>
       <button id="theme-toggle" class="icon-btn" title="Toggle dark/light theme">
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -708,6 +760,7 @@
 <div class="detail-overlay" id="activity-overlay"></div>
 <div class="detail-overlay" id="edit-tasks-overlay"></div>
 <div class="detail-overlay" id="cycle-overlay"></div>
+<div class="detail-overlay" id="print-overlay"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
@@ -816,6 +869,9 @@
     try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch {}
     renderAll();
   };
+  // Print / snip preview button — any signed-in user can open it.
+  const printBtn = document.getElementById("print-btn");
+  if (printBtn) printBtn.onclick = openPrint;
   // NOTE: The "Assign mode" wiring lives BELOW the state block (after `let
   // assignMode = …` is declared) — moving it earlier caused a temporal-dead-zone
   // ReferenceError that silently broke login.
@@ -1766,7 +1822,7 @@
   // Close detail with Escape
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && ui.detailJob) closeDetail();
-    if (e.key === "Escape") { closeActivity(); closeEditTasks(); }
+    if (e.key === "Escape") { closeActivity(); closeEditTasks(); closePrint(); }
   });
 
   // ---- Activity log viewer (admin only) ----
@@ -2130,6 +2186,112 @@
     overlay.innerHTML = "";
   }
 
+  // ---- Print / snip preview ----
+  // Opens a clean, printable snapshot of the current floor (or the PBR
+  // property overview if user is on the home page). Same view is snip-friendly
+  // — take a screenshot with the OS tool for a shareable image.
+  function openPrint() {
+    const overlay = $("#print-overlay");
+    if (isHotelMode()) { renderPrintProperty(overlay); }
+    else               { renderPrintFloor(overlay); }
+    overlay.classList.add("open");
+  }
+  function closePrint() {
+    const overlay = $("#print-overlay");
+    overlay.classList.remove("open");
+    overlay.innerHTML = "";
+  }
+  function renderPrintFloor(overlay) {
+    const tower = getTower(ui.tower);
+    const floor = getFloor(tower, ui.floor);
+    const dateStr = new Date().toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+    const cyclesActiveText = () => {
+      const lines = [];
+      for (const j of JOBS) {
+        const c = cycles[j.key];
+        if (c && c.startDate && c.targetDate) lines.push(`${j.label}: Start ${shortDate(c.startDate)} · Target ${shortDate(c.targetDate)}`);
+      }
+      return lines;
+    };
+    const rowsHtml = floor.rooms.map(r => {
+      const cellsHtml = JOBS.map(j => {
+        const id = docId(tower.id, r, j.key);
+        const c = completions[id];
+        const a = !c && assignments[id];
+        if (c) {
+          const cls = isDunhill(c.doneBy) ? "print-cb on dunhill" : "print-cb on";
+          return `<td><span class="${cls}">${isDunhill(c.doneBy) ? "D" : "✓"}</span></td>`;
+        }
+        if (a) return `<td><span class="print-cb assigned">A</span></td>`;
+        return `<td></td>`;
+      }).join("");
+      return `<tr><td>${r}</td>${cellsHtml}</tr>`;
+    }).join("");
+    const headers = JOBS.map(j => `<th>${j.label}</th>`).join("");
+    const cyc = cyclesActiveText();
+    const cyclesHtml = cyc.length ? `<div style="font-size:11px;color:#555;margin-bottom:10px;">Active cycles: ${cyc.join(" · ")}</div>` : "";
+    overlay.innerHTML = `
+      <div class="print-modal">
+        <div class="print-head">
+          <div>
+            <h2>Room Tracker &mdash; ${tower.name} &middot; Floor ${floor.num}</h2>
+            <div class="p-sub">${dateStr} &middot; ${floor.rooms.length} rooms &middot; ${JOBS.length} tasks</div>
+          </div>
+          <div class="p-actions">
+            <button class="primary" data-print-do>Print / Save PDF</button>
+            <button data-print-close>Close</button>
+          </div>
+        </div>
+        ${cyclesHtml}
+        <table class="print-table">
+          <thead><tr><th>Room</th>${headers}</tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="print-legend">
+          <span><span class="print-cb on">✓</span> Done (team)</span>
+          <span><span class="print-cb on dunhill">D</span> Done (Dunhill)</span>
+          <span><span class="print-cb assigned">A</span> Assigned</span>
+          <span>Blank = not done</span>
+        </div>
+        <div class="print-footer">Generated ${new Date().toLocaleString()} &middot; Snip this window or click Print for PDF.</div>
+      </div>`;
+    overlay.querySelector("[data-print-do]").onclick = () => window.print();
+    overlay.querySelector("[data-print-close]").onclick = closePrint;
+  }
+  function renderPrintProperty(overlay) {
+    const dateStr = new Date().toLocaleDateString(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+    const t = propertyStats();
+    const rows = JOBS.map(j => {
+      const s = jobStatsAcrossAll(j.key);
+      const parts = TOWERS.map(tw => {
+        const ts = jobStatsInTower(tw, j.key);
+        const short = tw.name.replace(/\s*Tower\s*$/i, "");
+        return `${short} ${ts.pct}%`;
+      }).join(" &middot; ");
+      return `<tr><td>${j.label}</td><td>${s.done}/${s.total}</td><td>${s.pct}%</td><td>${parts}</td></tr>`;
+    }).join("");
+    overlay.innerHTML = `
+      <div class="print-modal">
+        <div class="print-head">
+          <div>
+            <h2>Room Tracker &mdash; PBR property overview</h2>
+            <div class="p-sub">${dateStr} &middot; ${t.done}/${t.total} tasks &middot; ${t.pct}% overall</div>
+          </div>
+          <div class="p-actions">
+            <button class="primary" data-print-do>Print / Save PDF</button>
+            <button data-print-close>Close</button>
+          </div>
+        </div>
+        <table class="print-table">
+          <thead><tr><th>Task</th><th>Rooms done</th><th>Overall</th><th>Per tower</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="print-footer">Generated ${new Date().toLocaleString()} &middot; Snip this window or click Print for PDF.</div>
+      </div>`;
+    overlay.querySelector("[data-print-do]").onclick = () => window.print();
+    overlay.querySelector("[data-print-close]").onclick = closePrint;
+  }
+
   async function toggleJobColumn(jobKey) {
     const tower = getTower(ui.tower);
     const floor = getFloor(tower, ui.floor);
@@ -2211,6 +2373,11 @@
     }
     if (e.target.id === "cycle-overlay") {
       closeCycleEditor();
+      return;
+    }
+    // Print overlay: backdrop click closes; button clicks handled by the render fn
+    if (e.target.id === "print-overlay") {
+      closePrint();
       return;
     }
     // Start cycle button (admin only, on stat cards). Must come BEFORE the
