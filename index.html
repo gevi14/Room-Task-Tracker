@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Room Tracker build: 2026-06-03-safer-actions-v4-4 (Are-you-sure on Reset all + Mark floor + Clear floor; flat hero) -->
+<!-- Room Tracker build: 2026-09-08-assign-mode-v4-5 (adds Assign mode / yellow pre-plan cells on top of v4.4 safer-actions) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Room Tracker</title>
-<meta name="rt-build" content="2026-06-03-safer-actions-v4-4">
+<meta name="rt-build" content="2026-09-08-assign-mode-v4-5">
 
 <!-- iOS PWA hints -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -380,6 +380,22 @@
     border: solid #fff; border-width: 0 2.5px 2.5px 0;
     transform: rotate(45deg) translate(-1px, -1px);
   }
+  /* Pre-assigned (planned) cell — light yellow. Only visible when NOT yet
+     checked; the moment a check-mark lands, the yellow goes away. */
+  label.cb.assigned:not(.checked) {
+    background: #fff4c2;
+    border-color: #d9b317;
+  }
+  html[data-theme="dark"] label.cb.assigned:not(.checked) {
+    background: #4a3f10;
+    border-color: #d9b317;
+  }
+  body.assign-mode .wrap { outline: 2px dashed #d9b317; outline-offset: -4px; }
+  .assign-btn { font-size: 12px; font-weight: 600; padding: 6px 12px; }
+  .assign-btn.assign-on {
+    background: #fff4c2; border-color: #d9b317; color: #6b520a;
+  }
+  .assign-btn.assign-on:hover { background: #ffe98a; }
   label.cb .by {
     position: absolute; bottom: -16px; left: 50%; transform: translateX(-50%);
     font-size: 9px; color: var(--green); white-space: nowrap; pointer-events: none;
@@ -633,6 +649,7 @@
         <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
         <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       </button>
+      <button id="assign-btn" class="assign-btn admin-only" style="display:none" title="When ON, tapping a cell marks it yellow (assigned to be done) instead of checking it done">Assign mode</button>
       <button id="edit-tasks-btn" class="admin-only" style="display:none" title="Rename, add, or remove tasks">Edit tasks</button>
       <button id="activity-btn" class="admin-only" style="display:none" title="View activity log">Activity</button>
       <button id="reset-day" class="danger admin-only" style="display:none">Reset all</button>
@@ -761,6 +778,11 @@
     try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch {}
     renderAll();
   };
+  // "Assign mode" toggle (admin only; visibility gated by .admin-only class)
+  const assignBtn = document.getElementById("assign-btn");
+  if (assignBtn) assignBtn.onclick = () => setAssignMode(!assignMode);
+  updateAssignBadge();
+  if (assignMode) document.body.classList.add("assign-mode");
 
   // ---- Local state ----
   const UI_KEY = "room-tracker.ui.v1";
@@ -771,6 +793,26 @@
   try { Object.assign(ui, JSON.parse(localStorage.getItem(UI_KEY) || "{}")); } catch {}
   let completions = {}; // docId -> { tower, room, job, doneBy, doneAt }
   let cycles = {};      // jobKey -> { startDate: "YYYY-MM-DD", targetDate: "YYYY-MM-DD", startedBy, startedAt }
+  let assignments = {}; // docId -> { assignedBy, assignedAt }  — "yellow / planned" cells
+  function isAssigned(tower, room, job) { return !!assignments[docId(tower, room, job)]; }
+
+  // "Assign mode" — when ON, tapping a cell toggles a yellow "planned" state
+  // instead of a check-mark. Admin-only; supervisors use it to pre-plan the
+  // day's rooms in the morning.
+  const ASSIGN_KEY = "room-tracker.assignMode.v1";
+  let assignMode = localStorage.getItem(ASSIGN_KEY) === "1";
+  function setAssignMode(on) {
+    assignMode = !!on;
+    try { localStorage.setItem(ASSIGN_KEY, assignMode ? "1" : "0"); } catch {}
+    updateAssignBadge();
+    document.body.classList.toggle("assign-mode", assignMode);
+  }
+  function updateAssignBadge() {
+    const btn = document.getElementById("assign-btn");
+    if (!btn) return;
+    btn.textContent = assignMode ? "Assign mode: ON" : "Assign mode";
+    btn.classList.toggle("assign-on", assignMode);
+  }
   let displayName = localStorage.getItem(NAME_KEY) || "";
   let currentRole = localStorage.getItem(ROLE_KEY) || "staff";  // "admin" or "staff"
 
@@ -982,6 +1024,7 @@
   let unsub = null;
   let unsubJobs = null;
   let unsubCycles = null;
+  let unsubAssignments = null;
   let listenerStarted = false;
   function startListening() {
     if (listenerStarted) return;
@@ -998,6 +1041,14 @@
       }
       // else: keep DEFAULT_JOBS fallback (first time admin opens "Edit tasks", it'll seed this doc)
     }, (err) => { console.warn("jobs listener", err); });
+
+    // Live assignments (yellow "planned" cells)
+    unsubAssignments = onSnapshot(collection(db, "assignments"), (snap) => {
+      const next = {};
+      snap.forEach((d) => { next[d.id] = d.data(); });
+      assignments = next;
+      renderAll();
+    }, (err) => { console.warn("assignments listener", err); });
 
     unsub = onSnapshot(collection(db, "completions"), (snap) => {
       const next = {};
@@ -1091,6 +1142,9 @@
 
   // ---- Writes ----
   async function toggle(tower, room, job) {
+    // Assign mode routes taps to a yellow "planned" assignment write instead
+    // of a check-mark. Regular tap-behavior returns as soon as admin turns it off.
+    if (assignMode) return toggleAssign(tower, room, job);
     const id = docId(tower, room, job);
     const ref = doc(db, "completions", id);
     if (completions[id]) {
@@ -1107,8 +1161,37 @@
       renderAll();
       try {
         await setDoc(ref, data);
+        // A completion "consumes" its assignment — auto-clear the yellow.
+        if (assignments[id]) {
+          delete assignments[id];
+          try { await deleteDoc(doc(db, "assignments", id)); } catch {}
+        }
         logActivity("check", { tower, room, job });
       } catch (e) { console.error(e); showToast("Couldn't save"); }
+    }
+  }
+
+  // Toggle an assignment (yellow highlight) on/off. Admin-only write.
+  async function toggleAssign(tower, room, job) {
+    if (currentRole !== "admin") { showToast("Only admins can assign rooms"); return; }
+    const id = docId(tower, room, job);
+    const ref = doc(db, "assignments", id);
+    if (assignments[id]) {
+      delete assignments[id];
+      renderAll();
+      try {
+        await deleteDoc(ref);
+        logActivity("unassign", { tower, room, job });
+      } catch (e) { console.error(e); showToast("Couldn't unassign"); }
+    } else {
+      if (completions[id]) { showToast("Already done"); return; }
+      const data = { tower, room, job, assignedBy: displayName, assignedAt: serverTimestamp() };
+      assignments[id] = { ...data, assignedAt: new Date() };
+      renderAll();
+      try {
+        await setDoc(ref, data);
+        logActivity("assign", { tower, room, job });
+      } catch (e) { console.error(e); showToast("Couldn't assign"); }
     }
   }
 
@@ -1477,9 +1560,12 @@
       const cells = JOBS.map(j => {
         const id = docId(tower.id, r, j.key);
         const c = completions[id];
+        const a = !c && assignments[id]; // yellow only when planned but not yet done
         const by = c && c.doneBy ? c.doneBy : "";
+        const assignedClass = a ? " assigned" : "";
+        const titleText = c ? ("Done by " + by) : (a ? "Assigned — someone will do this" : "");
         return `<td>
-          <label class="cb${c ? " checked" : ""}" data-tower="${tower.id}" data-room="${r}" data-job="${j.key}" title="${by ? "Done by " + by : ""}">
+          <label class="cb${c ? " checked" : ""}${assignedClass}" data-tower="${tower.id}" data-room="${r}" data-job="${j.key}" title="${titleText}">
             <input type="checkbox" ${c ? "checked" : ""}>
           </label>
         </td>`;
@@ -1646,6 +1732,10 @@
         return `<b>${jobLabel(a.job)}</b> cycle completed in ${a.elapsedDays != null ? a.elapsedDays : "?"} days`;
       case "cycle-reset":
         return `ended <b>${jobLabel(a.job)}</b> cycle early (${a.elapsedDays != null ? a.elapsedDays : "?"} days in)`;
+      case "assign":
+        return `pre-assigned <b>${jobLabel(a.job)}</b> for ${towerLabel(a.tower)} room ${a.room}`;
+      case "unassign":
+        return `un-assigned <b>${jobLabel(a.job)}</b> for ${towerLabel(a.tower)} room ${a.room}`;
       default:
         return `did "${a.action}"`;
     }
