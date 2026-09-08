@@ -63,6 +63,14 @@ service cloud.firestore {
       allow read, write: if isStaff();
     }
 
+    // ---- room assignments (yellow "planned" cells) ----
+    // Admin pre-plans rooms/tasks; presence of the doc = the cell is yellow.
+    // Staff can read (so they see what's queued) and write (so a check-mark
+    // can auto-delete its assignment). App code enforces admin-only writes.
+    match /assignments/{docId} {
+      allow read, write: if isStaff();
+    }
+
     // ---- activity log (audit trail) ----
     // Any staff can append a log entry; only admins can read the log.
     // No one can update or delete entries (immutable audit trail; rely on TTL).

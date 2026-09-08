@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Room Tracker build: 2026-09-08-assign-mode-v4-5 (adds Assign mode / yellow pre-plan cells on top of v4.4 safer-actions) -->
+<!-- Room Tracker build: 2026-09-08-assign-mode-v4-5-1 (HOTFIX: moved Assign-mode wiring below state; login was crashing) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Room Tracker</title>
-<meta name="rt-build" content="2026-09-08-assign-mode-v4-5">
+<meta name="rt-build" content="2026-09-08-assign-mode-v4-5-1">
 
 <!-- iOS PWA hints -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -778,11 +778,9 @@
     try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch {}
     renderAll();
   };
-  // "Assign mode" toggle (admin only; visibility gated by .admin-only class)
-  const assignBtn = document.getElementById("assign-btn");
-  if (assignBtn) assignBtn.onclick = () => setAssignMode(!assignMode);
-  updateAssignBadge();
-  if (assignMode) document.body.classList.add("assign-mode");
+  // NOTE: The "Assign mode" wiring lives BELOW the state block (after `let
+  // assignMode = …` is declared) — moving it earlier caused a temporal-dead-zone
+  // ReferenceError that silently broke login.
 
   // ---- Local state ----
   const UI_KEY = "room-tracker.ui.v1";
@@ -813,6 +811,13 @@
     btn.textContent = assignMode ? "Assign mode: ON" : "Assign mode";
     btn.classList.toggle("assign-on", assignMode);
   }
+  // Wire the Assign-mode button now that `assignMode` and helpers exist.
+  (() => {
+    const assignBtn = document.getElementById("assign-btn");
+    if (assignBtn) assignBtn.onclick = () => setAssignMode(!assignMode);
+    updateAssignBadge();
+    if (assignMode) document.body.classList.add("assign-mode");
+  })();
   let displayName = localStorage.getItem(NAME_KEY) || "";
   let currentRole = localStorage.getItem(ROLE_KEY) || "staff";  // "admin" or "staff"
 
