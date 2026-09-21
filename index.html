@@ -1,11 +1,11 @@
 <!doctype html>
-<!-- Room Tracker build: 2026-09-08-print-snip-v4-8 (Print button → clean print/snip preview of current floor or PBR overview) -->
+<!-- Room Tracker build: 2026-09-21-assigned-row-v4-9 (amber room # + dot when row has planned work; hatched A cell prints clearly) -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Room Tracker</title>
-<meta name="rt-build" content="2026-09-08-print-snip-v4-8">
+<meta name="rt-build" content="2026-09-21-assigned-row-v4-9">
 
 <!-- iOS PWA hints -->
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -361,6 +361,12 @@
   tr.done { background: var(--row-done-bg); }
   tr.done td:first-child { color: var(--green); font-weight: 700; }
   .room-num { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 14px; }
+  /* When any task in the row is assigned, the room number shifts to amber +
+     gets a small amber dot marker beside it. Scannable at a glance. */
+  .room-num.assigned { color: #b26100; font-weight: 800; }
+  html[data-theme="dark"] .room-num.assigned { color: #fcd34d; }
+  .room-assigned-dot { color: #d97706; font-weight: 900; font-size: 18px; line-height: 0; margin-left: 2px; vertical-align: -1px; }
+  html[data-theme="dark"] .room-assigned-dot { color: #f59e0b; }
 
   label.cb {
     display: inline-flex; align-items: center; justify-content: center;
@@ -450,10 +456,31 @@
   }
   table.print-table th { background: #f0f0f0 !important; font-weight: 700; }
   table.print-table td:first-child, table.print-table th:first-child { text-align: left; font-weight: 600; }
-  .print-cb { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border: 1.5px solid #666; border-radius: 3px; font-weight: 700; font-size: 11px; color: #fff; line-height: 1; }
+  .print-cb { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border: 1.5px solid #666; border-radius: 3px; font-weight: 800; font-size: 12px; color: #fff; line-height: 1; }
   .print-cb.on         { background: #2a8a4a; border-color: #2a8a4a; }
   .print-cb.on.dunhill { background: #d97706; border-color: #d97706; }
-  .print-cb.assigned   { background: #fff4c2; border-color: #d97706; color: #6b520a; }
+  /* Assigned cell uses a diagonal amber-striped fill instead of flat light
+     yellow. Prints clearly in BOTH color and grayscale, and stays visually
+     distinct from ✓ (solid green) and D (solid amber). Bold black "A" on top. */
+  .print-cb.assigned   {
+    background-color: #fff;
+    background-image: repeating-linear-gradient(
+      45deg,
+      #d97706 0, #d97706 2px,
+      transparent 2px, transparent 5px
+    );
+    border: 2px solid #d97706;
+    color: #111;
+    font-weight: 800;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* Also flip the top-row .on styles into forced-color-print so browsers with
+     "background graphics off" (Chrome/Edge default) still show them. */
+  .print-cb.on, .print-cb.on.dunhill {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .print-legend { margin-top: 14px; font-size: 11px; color: #555; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
   .print-legend > span { display: inline-flex; align-items: center; gap: 6px; }
   .print-footer { margin-top: 14px; font-size: 10px; color: #999; text-align: center; }
@@ -887,6 +914,15 @@
   let cycles = {};      // jobKey -> { startDate: "YYYY-MM-DD", targetDate: "YYYY-MM-DD", startedBy, startedAt }
   let assignments = {}; // docId -> { assignedBy, assignedAt }  — "yellow / planned" cells
   function isAssigned(tower, room, job) { return !!assignments[docId(tower, room, job)]; }
+  // True when any task in this room is assigned (and not yet done) — used to
+  // highlight the room number so admin can spot planned rooms at a glance.
+  function roomHasAssignments(towerId, room) {
+    for (const j of JOBS) {
+      const id = docId(towerId, room, j.key);
+      if (assignments[id] && !completions[id]) return true;
+    }
+    return false;
+  }
 
   // "Dunhill" is the door / hardware installer who sometimes does rooms
   // instead of the resort's own housekeeping team. His checks get a bold "D"
@@ -1704,7 +1740,10 @@
           </label>
         </td>`;
       }).join("");
-      tr.innerHTML = `<td><span class="room-num">${r}</span></td>${cells}`;
+      const roomAssigned = roomHasAssignments(tower.id, r);
+      const roomClass = "room-num" + (roomAssigned ? " assigned" : "");
+      const dot = roomAssigned ? ` <span class="room-assigned-dot" aria-hidden="true">•</span>` : "";
+      tr.innerHTML = `<td><span class="${roomClass}">${r}</span>${dot}</td>${cells}`;
       tbody.appendChild(tr);
     }
     table.appendChild(tbody);
@@ -2225,7 +2264,12 @@
         if (a) return `<td><span class="print-cb assigned">A</span></td>`;
         return `<td></td>`;
       }).join("");
-      return `<tr><td>${r}</td>${cellsHtml}</tr>`;
+      // Amber the room number in the print table too if any of its tasks are assigned.
+      const roomAssignedRow = roomHasAssignments(tower.id, r);
+      const roomCell = roomAssignedRow
+        ? `<td style="color:#b26100;font-weight:800;">${r} <span style="color:#d97706;font-weight:900;">•</span></td>`
+        : `<td>${r}</td>`;
+      return `<tr>${roomCell}${cellsHtml}</tr>`;
     }).join("");
     const headers = JOBS.map(j => `<th>${j.label}</th>`).join("");
     const cyc = cyclesActiveText();
